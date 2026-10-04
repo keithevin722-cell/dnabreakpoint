@@ -17,12 +17,15 @@ textarea{{width:100%;height:14em;font-family:monospace}}td,th{{padding:2px 8px;t
 <h1>DNA Breakpoint</h1><p><em>{disclaimer}</em></p>
 <form method=post><p>Paste your genome / sequence (FASTA or raw). Add the gene, rsID or HGVS
 variant (e.g. CFTR, rs113993960, NM_000492.4:c.1521_1523del) on header or extra lines, plus a description of the problem.</p>
-<p><label>Or load a file (VCF, .vcf.gz, FASTA, text): <input type=file id=f accept=".vcf,.gz,.fa,.fasta,.txt"></label></p>
+<p><button type=button id=up>Upload file</button> <span id=fn>VCF, .vcf.gz, FASTA or text</span>
+<input type=file id=f hidden accept=".vcf,.gz,.fa,.fasta,.txt"></p>
 <textarea name=genome id=g required></textarea><p><label><input type=checkbox name=refresh value=1>
 Force fresh research</label> <button>Research treatments</button></p></form>
 <p>Knowledge base: {papers} papers from {queries} searches.</p>{results}
 <script>
+document.getElementById("up").onclick=()=>document.getElementById("f").click();
 document.getElementById("f").onchange=async e=>{{const f=e.target.files[0];if(!f)return;
+document.getElementById("fn").textContent=f.name;
 let b=f.stream();if(/\\.gz$/i.test(f.name))b=b.pipeThrough(new DecompressionStream("gzip"));
 document.getElementById("g").value=await new Response(b).text()}};
 </script>"""
