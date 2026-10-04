@@ -17,9 +17,15 @@ textarea{{width:100%;height:14em;font-family:monospace}}td,th{{padding:2px 8px;t
 <h1>DNA Breakpoint</h1><p><em>{disclaimer}</em></p>
 <form method=post><p>Paste your genome / sequence (FASTA or raw). Add the gene, rsID or HGVS
 variant (e.g. CFTR, rs113993960, NM_000492.4:c.1521_1523del) on header or extra lines, plus a description of the problem.</p>
-<textarea name=genome required></textarea><p><label><input type=checkbox name=refresh value=1>
+<p><label>Or load a file (VCF, .vcf.gz, FASTA, text): <input type=file id=f accept=".vcf,.gz,.fa,.fasta,.txt"></label></p>
+<textarea name=genome id=g required></textarea><p><label><input type=checkbox name=refresh value=1>
 Force fresh research</label> <button>Research treatments</button></p></form>
-<p>Knowledge base: {papers} papers from {queries} searches.</p>{results}"""
+<p>Knowledge base: {papers} papers from {queries} searches.</p>{results}
+<script>
+document.getElementById("f").onchange=async e=>{{const f=e.target.files[0];if(!f)return;
+let b=f.stream();if(/\\.gz$/i.test(f.name))b=b.pipeThrough(new DecompressionStream("gzip"));
+document.getElementById("g").value=await new Response(b).text()}};
+</script>"""
 
 
 def render_results(a, res):
@@ -28,6 +34,13 @@ def render_results(a, res):
     out = [f"<h2>Analysis</h2><p>Sequence length: {a['length']} bp, GC: {a['gc']}</p>",
            f"<p>Detected: genes {e(', '.join(t['genes']) or '-')}; rsIDs {e(', '.join(t['rsids']) or '-')}; "
            f"variants {e(', '.join(t['variants']) or '-')}</p>"]
+    if a.get("variants"):
+        out.append(f"<h2>Variants from VCF ({len(a['variants'])})</h2><table>"
+                   "<tr><th>Chrom<th>Pos<th>ID<th>Ref<th>Alt<th>Genes</tr>")
+        for v in a["variants"][:50]:
+            out.append(f"<tr><td>{e(v['chrom'])}<td>{e(v['pos'])}<td>{e(v['id'])}<td>{e(v['ref'][:30])}"
+                       f"<td>{e(v['alt'][:30])}<td>{e(', '.join(v['genes']))}</tr>")
+        out.append("</table>")
     if a["cut_sites"]:
         out.append("<h2>Candidate Cas9 cut sites</h2><table><tr><th>Strand<th>Guide<th>PAM<th>Cut pos<th>GC</tr>")
         for s in a["cut_sites"]:

@@ -53,9 +53,57 @@ def find_cut_sites(seq, guide_len=20, limit=10):
     return sites[:limit]
 
 
+def is_vcf(text):
+    head = text.lstrip()[:2000]
+    return head.startswith("##fileformat=VCF") or "\n#CHROM" in "\n" + head
+
+
+def _info_genes(info):
+    genes = []
+    for item in info.split(";"):
+        key, _, val = item.partition("=")
+        if key in ("GENE", "SYMBOL"):
+            genes += val.split(",")
+        elif key == "GENEINFO":
+            genes += [g.split(":")[0] for g in val.split("|")]
+        elif key == "ANN":  # SnpEff: allele|effect|impact|gene|...
+            for ann in val.split(","):
+                f = ann.split("|")
+                if len(f) > 3:
+                    genes.append(f[3])
+    return genes
+
+
+def parse_vcf(text):
+    """Return (variants, terms) from VCF text; terms match extract_terms output."""
+    variants, genes, rsids = [], set(), set()
+    for line in text.splitlines():
+        if not line.strip() or line.startswith("#"):
+            continue
+        f = line.rstrip("\r\n").split("\t")
+        if len(f) < 5:
+            f = line.split()
+        if len(f) < 5:
+            continue
+        chrom, pos, vid, ref, alt = f[:5]
+        info = f[7] if len(f) > 7 else ""
+        ids = [] if vid == "." else vid.split(";")
+        rsids.update(i.lower() for i in ids if RSID_RE.fullmatch(i))
+        vg = [g for g in _info_genes(info) if g and g != "."]
+        genes.update(g for g in vg if GENE_RE.fullmatch(g) and g not in STOP)
+        variants.append({"chrom": chrom, "pos": pos, "id": vid, "ref": ref, "alt": alt,
+                         "genes": sorted(set(vg))})
+    terms = {"genes": sorted(genes)[:5], "rsids": sorted(rsids)[:5], "variants": []}
+    return variants, terms
+
+
 def analyze(text):
+    if is_vcf(text):
+        variants, terms = parse_vcf(text)
+        return {"length": 0, "gc": None, "notes": "", "terms": terms, "cut_sites": [],
+                "variants": variants}
     seq, notes = parse_input(text)
     terms = extract_terms(notes)
     gc = round((seq.count("G") + seq.count("C")) / len(seq), 3) if seq else None
     return {"length": len(seq), "gc": gc, "notes": notes, "terms": terms,
-            "cut_sites": find_cut_sites(seq) if seq else []}
+            "cut_sites": find_cut_sites(seq) if seq else [], "variants": []}
