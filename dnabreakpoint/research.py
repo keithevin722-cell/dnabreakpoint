@@ -16,7 +16,7 @@ CACHE_SECONDS = 7 * 86400
 
 def fetch_europepmc(query, page_size=15):
     params = urllib.parse.urlencode({"query": query + " sort_date:y", "format": "json",
-                                     "pageSize": page_size, "resultType": "lite"})
+                                     "pageSize": page_size, "resultType": "core"})
     with urllib.request.urlopen(f"{API}?{params}", timeout=20) as r:
         data = json.load(r)
     out = []
@@ -26,6 +26,7 @@ def fetch_europepmc(query, page_size=15):
         out.append({"id": f"{src}:{p.get('id')}", "title": p.get("title", ""),
                     "authors": p.get("authorString", ""), "journal": p.get("journalTitle", ""),
                     "date": p.get("firstPublicationDate", ""), "year": p.get("pubYear", ""),
+                    "abstract": p.get("abstractText", ""),
                     "url": f"https://europepmc.org/article/{src}/{p.get('id')}" if pid else ""})
     return out
 
@@ -36,10 +37,14 @@ class KnowledgeBase:
         self.fetcher = fetcher
         self.db.executescript("""
         CREATE TABLE IF NOT EXISTS papers(id TEXT PRIMARY KEY, title TEXT, authors TEXT,
-            journal TEXT, date TEXT, year TEXT, url TEXT);
+            journal TEXT, date TEXT, year TEXT, url TEXT, abstract TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS queries(query TEXT PRIMARY KEY, last_run REAL, runs INTEGER);
         CREATE TABLE IF NOT EXISTS query_papers(query TEXT, paper_id TEXT, PRIMARY KEY(query, paper_id));
         """)
+        if "abstract" not in {r[1] for r in self.db.execute("PRAGMA table_info(papers)")}:
+            self.db.execute("ALTER TABLE papers ADD COLUMN abstract TEXT DEFAULT ''")
+            self.db.execute("DELETE FROM queries")  # force refetch so abstracts get filled in
+            self.db.commit()
 
     def search(self, query, refresh=False):
         """Return papers for a query newest first; learn new papers from the web when stale."""
@@ -48,19 +53,20 @@ class KnowledgeBase:
         if stale:
             try:
                 for p in self.fetcher(query):
-                    self.db.execute("INSERT OR REPLACE INTO papers VALUES(?,?,?,?,?,?,?)",
+                    self.db.execute("INSERT OR REPLACE INTO papers(id,title,authors,journal,date,year,url,abstract) "
+                                    "VALUES(?,?,?,?,?,?,?,?)",
                                     (p["id"], p["title"], p["authors"], p["journal"],
-                                     p["date"], p["year"], p["url"]))
+                                     p["date"], p["year"], p["url"], p.get("abstract", "")))
                     self.db.execute("INSERT OR IGNORE INTO query_papers VALUES(?,?)", (query, p["id"]))
                 self.db.execute("INSERT INTO queries VALUES(?,?,1) ON CONFLICT(query) DO UPDATE "
                                 "SET last_run=excluded.last_run, runs=runs+1", (query, time.time()))
                 self.db.commit()
             except OSError:
                 pass  # offline: fall back to what has been learned already
-        cur = self.db.execute("SELECT p.id,p.title,p.authors,p.journal,p.date,p.year,p.url FROM papers p "
+        cur = self.db.execute("SELECT p.id,p.title,p.authors,p.journal,p.date,p.year,p.url,p.abstract FROM papers p "
                               "JOIN query_papers q ON q.paper_id=p.id WHERE q.query=? "
                               "ORDER BY p.date DESC", (query,))
-        keys = ("id", "title", "authors", "journal", "date", "year", "url")
+        keys = ("id", "title", "authors", "journal", "date", "year", "url", "abstract")
         return [dict(zip(keys, r)) for r in cur]
 
     def stats(self):
@@ -105,7 +111,7 @@ SIGNALS = {
 
 
 def evidence(res, examples=3):
-    """Rank delivery/editor/target themes by how many retrieved paper titles mention them."""
+    """Rank delivery/editor/target themes by how many retrieved papers mention them in title or abstract."""
     papers = {}
     for plist in res.values():
         for p in plist:
@@ -114,7 +120,7 @@ def evidence(res, examples=3):
     for group, pats in SIGNALS.items():
         rows = []
         for name, pat in pats.items():
-            hits = [p for p in papers.values() if re.search(pat, p["title"], re.I)]
+            hits = [p for p in papers.values() if re.search(pat, p["title"] + " " + (p.get("abstract") or ""), re.I)]
             if hits:
                 rows.append({"name": name, "count": len(hits), "papers": hits[:examples]})
         out[group] = sorted(rows, key=lambda r: -r["count"])

@@ -45,18 +45,22 @@ def render_results(a, res):
                        f"<td>{e(v['alt'][:30])}<td>{e(', '.join(v['genes']))}</tr>")
         out.append("</table>")
     if a["cut_sites"]:
-        out.append("<h2>Candidate Cas9 cut sites</h2><table><tr><th>Strand<th>Guide<th>PAM<th>Cut pos<th>GC</tr>")
+        vp = a.get("variant_pos") is not None
+        out.append("<h2>Candidate Cas9 cut sites</h2>"
+                   + (f"<p><small>Ranked by distance to the variant at position {a['variant_pos'] + 1}, then GC.</small></p>" if vp
+                      else "<p><small>No variant position given (add 'pos=N' or mark the variant in lowercase), so ranked by GC only.</small></p>")
+                   + "<table><tr><th>Strand<th>Guide<th>PAM<th>Cut pos<th>GC" + ("<th>Dist" if vp else "") + "</tr>")
         for s in a["cut_sites"]:
             out.append(f"<tr><td>{s['strand']}<td><code>{s['guide']}</code><td>{s['pam']}"
-                       f"<td>{s['cut_position']}<td>{s['gc']}</tr>")
+                       f"<td>{s['cut_position']}<td>{s['gc']}" + (f"<td>{s['distance']}" if vp else "") + "</tr>")
         out.append("</table>")
     if not res:
         out.append("<p>No gene, rsID or variant detected; add one to search the literature.</p>")
     else:
         titles = {"delivery": "Delivery options in the research", "editor": "Editing approaches in the research",
                   "target": "Target-region themes in the research"}
-        out.append("<h2>Research summary</h2><p><small>Ranked by how many of the newest paper titles mention each "
-                   "item. This shows what the literature is discussing, not a clinical recommendation.</small></p>")
+        out.append("<h2>Research summary</h2><p><small>Ranked by how many of the newest papers mention each "
+                   "item in the title or abstract. This shows what the literature is discussing, not a clinical recommendation.</small></p>")
         for group, rows in evidence(res).items():
             if not rows:
                 continue

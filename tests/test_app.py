@@ -32,6 +32,23 @@ class T(unittest.TestCase):
         self.assertTrue(any(r["name"] == "Base editing" for r in ev["editor"]))
         self.assertEqual(ev["target"][0]["name"], "Exon")
 
+    def test_variant_proximity(self):
+        seq = "ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC"
+        a = analyze(f">CFTR pos=3\n{seq}")
+        self.assertEqual(a["variant_pos"], 2)
+        d = [s["distance"] for s in a["cut_sites"]]
+        self.assertEqual(d, sorted(d))
+        b = analyze(">CFTR\n" + seq[:10] + seq[10].lower() + seq[11:])
+        self.assertEqual(b["variant_pos"], 10)
+        self.assertIsNone(analyze(">CFTR\n" + seq)["variant_pos"])
+
+    def test_abstract_evidence(self):
+        kb = KnowledgeBase(":memory:", lambda q: [
+            {"id": "MED:2", "title": "Gene therapy results", "abstract": "We used lentiviral vectors.",
+             "authors": "", "journal": "", "date": "", "year": "", "url": "u"}])
+        ev = evidence(research(kb, analyze(">CFTR\nATGC")["terms"]))
+        self.assertEqual(ev["delivery"][0]["name"], "Lentiviral vector")
+
     def test_kb_learns(self):
         calls = []
         kb = KnowledgeBase(":memory:", lambda q: calls.append(q) or FAKE)

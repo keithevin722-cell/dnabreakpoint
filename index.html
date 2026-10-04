@@ -4,7 +4,7 @@
 textarea{width:100%;height:14em;font-family:monospace}td,th{padding:2px 8px;text-align:left}</style>
 <h1>DNA Breakpoint</h1>
 <p><em>Research tool only. Not medical advice; candidate guides are computational suggestions that need expert and clinical validation.</em></p>
-<p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line.</p>
+<p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
 <p><button type=button id=up>Upload file</button> <span id=fn>VCF, .vcf.gz, FASTA or text</span>
 <input type=file id=f hidden accept=".vcf,.gz,.fa,.fasta,.txt"></p>
 <textarea id=g>>CFTR rs113993960
@@ -20,12 +20,15 @@ const DB=JSON.parse(localStorage.getItem("kb")||"{}");
 const save=()=>{localStorage.setItem("kb",JSON.stringify(DB));
  document.getElementById("kb").textContent=`Knowledge base: ${Object.keys(DB).length} searches saved in this browser`};
 save();
-function parse(t){let seq="",notes=[];
+function parse(t){let seq="",notes=[],mask=[];
  for(let l of t.split(/\r?\n/)){l=l.trim();if(!l)continue;
   if(/^[>#;]/.test(l)){notes.push(l.replace(/^[>#;\s]+/,""));continue}
-  const c=l.replace(/[\s\d]/g,"").toUpperCase();
-  if(c.length>=10&&/^[ACGTUN]+$/.test(c))seq+=c.replace(/U/g,"T");else notes.push(l)}
- return[seq,notes.join("\n")]}
+  const raw=l.replace(/[\s\d]/g,""),c=raw.toUpperCase();
+  if(c.length>=10&&/^[ACGTUN]+$/.test(c)){[...raw].forEach((x,i)=>{if(x!==x.toUpperCase())mask.push(seq.length+i)});seq+=c.replace(/U/g,"T")}else notes.push(l)}
+ return[seq,notes.join("\n"),mask]}
+function varPos(notes,mask,n){const m=notes.match(/\b(?:variant_)?pos(?:ition)?\s*[=:]\s*(\d+)/i);
+ if(m&&+m[1]>0&&+m[1]<=n)return+m[1]-1;
+ return mask.length&&mask.length<=50&&mask.length<n?mask[mask.length>>1]:null}
 const uniq=a=>[...new Set(a)];
 const SIG={"Delivery options in the research":{"AAV (adeno-associated virus)":/\bAAV\d*|adeno-associated/i,
  "Engineered / synthetic capsid or vector":/capsid|synthetic|engineered (?:AAV|vector|virus)|directed evolution/i,
@@ -36,9 +39,9 @@ const SIG={"Delivery options in the research":{"AAV (adeno-associated virus)":/\
  "Target-region themes in the research":{"Exon":/\bexon/i,"Exon skipping / splice site":/exon skipping|splic/i,
  "Intron":/intron/i,"Promoter / enhancer":/promoter|enhancer/i}};
 function summary(ps){
- let h="<h2>Research summary</h2><p><small>Ranked by how many of the newest paper titles mention each item. This shows what the literature is discussing, not a clinical recommendation.</small></p>";
+ let h="<h2>Research summary</h2><p><small>Ranked by how many of the newest papers mention each item in the title or abstract. This shows what the literature is discussing, not a clinical recommendation.</small></p>";
  for(const[g,pats]of Object.entries(SIG)){
-  const rows=Object.entries(pats).map(([n,re])=>[n,ps.filter(p=>re.test(p.title||""))]).filter(r=>r[1].length).sort((a,b)=>b[1].length-a[1].length);
+  const rows=Object.entries(pats).map(([n,re])=>[n,ps.filter(p=>re.test((p.title||"")+" "+(p.abstract||"")))]).filter(r=>r[1].length).sort((a,b)=>b[1].length-a[1].length);
   if(rows.length)h+=`<h3>${g}</h3><ol>`+rows.map(([n,hs])=>`<li>${esc(n)}: ${hs.length} papers `+
    hs.slice(0,3).map((p,i)=>`<a href="${esc(p.url)}" rel=noopener target=_blank title="${esc(p.title)}">[${i+1}]</a>`).join(" ")+"</li>").join("")+"</ol>"}
  return h}
@@ -65,34 +68,34 @@ function terms(n){return{
  rsids:uniq((n.match(/\brs\d{3,}\b/gi)||[]).map(x=>x.toLowerCase())).slice(0,5),
  variants:uniq(n.match(/\b(?:NM_|NC_|NG_)\d+(?:\.\d+)?:[cgp]\.[^\s,;]+/g)||[]).slice(0,5)}}
 const rc=s=>[...s].reverse().map(c=>({A:"T",C:"G",G:"C",T:"A"})[c]||"N").join("");
-function sites(seq){const out=[];
+function sites(seq,vp){const out=[];
  for(const[st,s]of[["+",seq],["-",rc(seq)]])
   for(let i=20;i<s.length-2;i++)if(s.substr(i+1,2)==="GG"){
    const guide=s.slice(i-20,i);if(guide.includes("N")||guide.includes("TTTT"))continue;
-   const gc=[...guide].filter(c=>"GC".includes(c)).length/20;
-   out.push({st,guide,pam:s.substr(i,3),pos:st==="+"?i-3:seq.length-i+3,gc})}
- return out.sort((a,b)=>Math.abs(a.gc-.5)-Math.abs(b.gc-.5)).slice(0,10)}
+   const gc=[...guide].filter(c=>"GC".includes(c)).length/20,pos=st==="+"?i-3:seq.length-i+3;
+   out.push({st,guide,pam:s.substr(i,3),pos,gc,dist:vp==null?0:Math.abs(pos-vp)})}
+ return out.sort((a,b)=>a.dist-b.dist||Math.abs(a.gc-.5)-Math.abs(b.gc-.5)).slice(0,10)}
 async function search(q,fresh){
  const e=DB[q];
- if(fresh||!e||Date.now()-e.t>6048e5){
+ if(fresh||!e||e.v!==2||Date.now()-e.t>6048e5){
   try{const r=await fetch("https://www.ebi.ac.uk/europepmc/webservices/rest/search?"+new URLSearchParams(
-   {query:q+" sort_date:y",format:"json",pageSize:15,resultType:"lite"}));
+   {query:q+" sort_date:y",format:"json",pageSize:15,resultType:"core"}));
    const d=await r.json();
-   DB[q]={t:Date.now(),papers:(d.resultList?.result||[]).map(p=>({title:p.title,journal:p.journalTitle,
+   DB[q]={v:2,t:Date.now(),papers:(d.resultList?.result||[]).map(p=>({title:p.title,journal:p.journalTitle,abstract:p.abstractText||"",
     date:p.firstPublicationDate||p.pubYear,url:`https://europepmc.org/article/${p.source}/${p.id}`}))};save()}
   catch(x){}}
  return DB[q]?.papers||[]}
 document.getElementById("go").onclick=async()=>{
  const out=document.getElementById("out");out.textContent="Researching...";
  const text=document.getElementById("g").value,vcf=isVcf(text);
- const[seq,notes]=vcf?["",""]:parse(text);
+ const[seq,notes,mask]=vcf?["","",[]]:parse(text),vp=varPos(notes,mask,seq.length);
  const[vars,vt]=vcf?parseVcf(text):[[],null],t=vt||terms(notes);
  let h=`<h2>Analysis</h2>${vcf?`<p>VCF: ${vars.length} variants</p>`:`<p>Length: ${seq.length} bp</p>`}<p>Detected: genes ${esc(t.genes.join(", ")||"-")}; rsIDs ${esc(t.rsids.join(", ")||"-")}; variants ${esc(t.variants.join(", ")||"-")}</p>`;
  if(vars.length)h+="<h2>Variants from VCF</h2><table><tr><th>Chrom<th>Pos<th>ID<th>Ref<th>Alt<th>Genes</tr>"+
   vars.slice(0,50).map(v=>`<tr><td>${esc(v.chrom)}<td>${esc(v.pos)}<td>${esc(v.id)}<td>${esc(v.ref.slice(0,30))}<td>${esc(v.alt.slice(0,30))}<td>${esc(v.genes.join(", "))}</tr>`).join("")+"</table>";
- const cs=sites(seq);
- if(cs.length)h+="<h2>Candidate Cas9 cut sites</h2><table><tr><th>Strand<th>Guide<th>PAM<th>Cut pos<th>GC</tr>"+
-  cs.map(s=>`<tr><td>${s.st}<td><code>${s.guide}</code><td>${s.pam}<td>${s.pos}<td>${s.gc.toFixed(2)}</tr>`).join("")+"</table>";
+ const cs=sites(seq,vp);
+ if(cs.length)h+="<h2>Candidate Cas9 cut sites</h2><p><small>"+(vp==null?"No variant position given (add 'pos=N' or mark the variant in lowercase), so ranked by GC only.":`Ranked by distance to the variant at position ${vp+1}, then GC.`)+"</small></p><table><tr><th>Strand<th>Guide<th>PAM<th>Cut pos<th>GC"+(vp==null?"":"<th>Dist")+"</tr>"+
+  cs.map(s=>`<tr><td>${s.st}<td><code>${s.guide}</code><td>${s.pam}<td>${s.pos}<td>${s.gc.toFixed(2)}${vp==null?"":`<td>${s.dist}`}</tr>`).join("")+"</table>";
  const subj=[...t.genes,...t.rsids,...t.variants.map(v=>`"${v}"`)];
  if(!subj.length)h+="<p>No gene, rsID or variant detected; add one to search the literature.</p>";
  else{const all=new Map();let lh="";for(const[n,q]of Object.entries(TOPICS)){

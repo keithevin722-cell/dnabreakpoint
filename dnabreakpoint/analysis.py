@@ -8,9 +8,8 @@ STOP = {"DNA", "RNA", "THE", "AND", "FOR", "WITH", "NOT", "GENE", "SNP", "PAM"}
 COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
 
-def parse_input(text):
-    """Split pasted text into (nucleotide sequence, free-text annotations)."""
-    seq, notes = [], []
+def _parse(text):
+    seq, notes, mask, offset = [], [], [], 0
     for line in text.splitlines():
         line = line.strip()
         if not line:
@@ -18,12 +17,34 @@ def parse_input(text):
         if line.startswith((">", "#", ";")):
             notes.append(line.lstrip(">#; "))
             continue
-        cleaned = re.sub(r"[\s\d]", "", line).upper()
+        raw = re.sub(r"[\s\d]", "", line)
+        cleaned = raw.upper()
         if len(cleaned) >= 10 and set(cleaned) <= set("ACGTUN"):
+            mask += [offset + i for i, c in enumerate(raw) if c.islower()]
+            offset += len(cleaned)
             seq.append(cleaned.replace("U", "T"))
         else:
             notes.append(line)
-    return "".join(seq), "\n".join(notes)
+    return "".join(seq), "\n".join(notes), mask
+
+
+def parse_input(text):
+    """Split pasted text into (nucleotide sequence, free-text annotations)."""
+    seq, notes, _ = _parse(text)
+    return seq, notes
+
+
+POS_RE = re.compile(r"\b(?:variant_)?pos(?:ition)?\s*[=:]\s*(\d+)", re.I)
+
+
+def variant_position(notes, mask, seq_len):
+    """0-based variant index from a 'pos=N' (1-based) note or a short lowercase-marked region."""
+    m = POS_RE.search(notes)
+    if m and 0 < int(m.group(1)) <= seq_len:
+        return int(m.group(1)) - 1
+    if mask and len(mask) <= 50 and len(mask) < seq_len:
+        return mask[len(mask) // 2]
+    return None
 
 
 def extract_terms(notes):
@@ -35,8 +56,8 @@ def extract_terms(notes):
     }
 
 
-def find_cut_sites(seq, guide_len=20, limit=10):
-    """Find SpCas9 NGG PAM sites on both strands; rank by GC content nearest 50%."""
+def find_cut_sites(seq, guide_len=20, limit=10, variant_pos=None):
+    """Find SpCas9 NGG PAM sites on both strands; rank by distance to the variant, then GC nearest 50%."""
     sites = []
     rc = seq.translate(COMPLEMENT)[::-1]
     for strand, s in (("+", seq), ("-", rc)):
@@ -48,8 +69,9 @@ def find_cut_sites(seq, guide_len=20, limit=10):
                 gc = (guide.count("G") + guide.count("C")) / guide_len
                 pos = i - 3 if strand == "+" else len(seq) - i + 3
                 sites.append({"strand": strand, "guide": guide, "pam": s[i:i + 3],
-                              "cut_position": pos, "gc": round(gc, 2)})
-    sites.sort(key=lambda x: abs(x["gc"] - 0.5))
+                              "cut_position": pos, "gc": round(gc, 2),
+                              "distance": None if variant_pos is None else abs(pos - variant_pos)})
+    sites.sort(key=lambda x: (x["distance"] if variant_pos is not None else 0, abs(x["gc"] - 0.5)))
     return sites[:limit]
 
 
@@ -102,8 +124,9 @@ def analyze(text):
         variants, terms = parse_vcf(text)
         return {"length": 0, "gc": None, "notes": "", "terms": terms, "cut_sites": [],
                 "variants": variants}
-    seq, notes = parse_input(text)
+    seq, notes, mask = _parse(text)
     terms = extract_terms(notes)
+    vpos = variant_position(notes, mask, len(seq))
     gc = round((seq.count("G") + seq.count("C")) / len(seq), 3) if seq else None
-    return {"length": len(seq), "gc": gc, "notes": notes, "terms": terms,
-            "cut_sites": find_cut_sites(seq) if seq else [], "variants": []}
+    return {"length": len(seq), "gc": gc, "notes": notes, "terms": terms, "variant_pos": vpos,
+            "cut_sites": find_cut_sites(seq, variant_pos=vpos) if seq else [], "variants": []}
