@@ -140,9 +140,10 @@ def make_handler(kb):
 
 def main():
     port = int(os.environ.get("PORT", sys.argv[1] if len(sys.argv) > 1 else 8000))
+    host = os.environ.get("HOST", "0.0.0.0")
     kb = KnowledgeBase(os.environ.get("KB_PATH", "knowledge.db"))
-    print(f"Serving on http://127.0.0.1:{port}")
-    ThreadingHTTPServer(("127.0.0.1", port), make_handler(kb)).serve_forever()
+    print(f"Serving on http://{host}:{port}")
+    ThreadingHTTPServer((host, port), make_handler(kb)).serve_forever()
 
 
 if __name__ == "__main__":

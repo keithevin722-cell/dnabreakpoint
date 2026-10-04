@@ -8,4 +8,5 @@ with the gene, rsID or HGVS variant. It suggests Cas9 cut-site candidates and se
 SQLite knowledge base (`knowledge.db`, override with `KB_PATH`) and reused/refreshed weekly.
 No-install version: just open `index.html` in any browser (works offline for cut sites; research needs internet; knowledge base saved in browser localStorage).
 Sequence identification is available in the Python server: opt in to send the pasted sequence to NCBI BLAST; matches include identity and query coverage. The standalone `index.html` does not submit DNA to external search services.
+In Codespaces, start the server and open the **Ports** tab to use its forwarded URL. Keep port visibility **Private**; the app has no authentication. Set `HOST=127.0.0.1` to disable network-interface binding.
 Tests: `python -m unittest discover tests`. Research tool only; not medical advice.
