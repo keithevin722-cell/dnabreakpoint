@@ -17,7 +17,7 @@ def _parse(text):
         if line.startswith((">", "#", ";")):
             notes.append(line.lstrip(">#; "))
             continue
-        raw = re.sub(r"[\s\d]", "", line)
+        raw = re.sub(r"[\s\d-]", "", line)
         cleaned = raw.upper()
         if len(cleaned) >= 10 and set(cleaned) <= set("ACGTUN"):
             mask += [offset + i for i, c in enumerate(raw) if c.islower()]

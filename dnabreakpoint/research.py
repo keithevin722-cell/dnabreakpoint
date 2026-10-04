@@ -5,8 +5,10 @@ import sqlite3
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 
 API = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+BLAST_API = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 TOPICS = {
     "editing": "(CRISPR OR \"base editing\" OR \"prime editing\") AND (therapy OR treatment)",
     "delivery": "(AAV OR lentiviral OR \"viral vector\" OR \"adeno-associated\") AND (delivery OR gene therapy)",
@@ -29,6 +31,70 @@ def fetch_europepmc(query, page_size=15):
                     "abstract": p.get("abstractText", ""),
                     "url": f"https://europepmc.org/article/{src}/{p.get('id')}" if pid else ""})
     return out
+
+
+def _blast_request(params):
+    encoded = urllib.parse.urlencode(params)
+    if params.get("CMD") == "Get":
+        request = urllib.request.Request(f"{BLAST_API}?{encoded}")
+    else:
+        request = urllib.request.Request(BLAST_API, data=encoded.encode())
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return response.read().decode()
+
+
+def parse_blast_xml(xml_text, query_length):
+    root = ET.fromstring(xml_text)
+    hits = []
+    for hit in root.findall(".//Hit"):
+        hsps = hit.findall("./Hit_hsps/Hsp")
+        if not hsps:
+            continue
+        hsp = max(hsps, key=lambda item: float(item.findtext("Hsp_bit-score", "0")))
+        align_len = int(hsp.findtext("Hsp_align-len", "0"))
+        q_from, q_to = int(hsp.findtext("Hsp_query-from", "1")), int(hsp.findtext("Hsp_query-to", "0"))
+        hits.append({
+            "title": hit.findtext("Hit_def", ""),
+            "accession": hit.findtext("Hit_accession", ""),
+            "identity": round(100 * int(hsp.findtext("Hsp_identity", "0")) / align_len, 1) if align_len else 0,
+            "coverage": round(100 * (q_to - q_from + 1) / query_length, 1) if query_length else 0,
+            "evalue": hsp.findtext("Hsp_evalue", ""),
+            "url": "https://www.ncbi.nlm.nih.gov/nuccore/" + hit.findtext("Hit_accession", ""),
+        })
+    return sorted(hits, key=lambda item: (float(item["evalue"] or "inf"),
+                                          -item["coverage"], -item["identity"]))[:10]
+
+
+def identify_sequence(sequence, timeout=90):
+    """Submit a sequence to NCBI BLAST and return ranked nucleotide matches."""
+    sequence = re.sub(r"[\s\d-]", "", sequence).upper().replace("U", "T")
+    if len(sequence) < 15 or not re.fullmatch(r"[ACGTN]+", sequence):
+        return {"status": "invalid", "hits": []}
+    if len(sequence) > 20_000:
+        return {"status": "too_long", "hits": []}
+    params = {"CMD": "Put", "PROGRAM": "blastn", "DATABASE": "nt", "QUERY": sequence,
+              "TOOL": "dnabreakpoint", "HITLIST_SIZE": 10}
+    if len(sequence) <= 50:
+        params.update({"WORD_SIZE": 7, "EXPECT": 1000})
+    try:
+        submitted = _blast_request(params)
+        rid = re.search(r"RID = (\S+)", submitted)
+        if not rid:
+            return {"status": "unavailable", "hits": []}
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            time.sleep(10)
+            status = _blast_request({"CMD": "Get", "RID": rid.group(1), "FORMAT_OBJECT": "SearchInfo"})
+            if "Status=FAILED" in status or "Status=UNKNOWN" in status:
+                return {"status": "unavailable", "hits": []}
+            if "Status=READY" in status:
+                if "ThereAreHits=no" in status:
+                    return {"status": "no_hits", "hits": []}
+                result = _blast_request({"CMD": "Get", "RID": rid.group(1), "FORMAT_TYPE": "XML"})
+                return {"status": "ok", "hits": parse_blast_xml(result, len(sequence))}
+        return {"status": "timeout", "hits": []}
+    except (OSError, ET.ParseError, ValueError):
+        return {"status": "unavailable", "hits": []}
 
 
 class KnowledgeBase:

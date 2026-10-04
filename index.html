@@ -23,7 +23,7 @@ save();
 function parse(t){let seq="",notes=[],mask=[];
  for(let l of t.split(/\r?\n/)){l=l.trim();if(!l)continue;
   if(/^[>#;]/.test(l)){notes.push(l.replace(/^[>#;\s]+/,""));continue}
-  const raw=l.replace(/[\s\d]/g,""),c=raw.toUpperCase();
+  const raw=l.replace(/[\s\d-]/g,""),c=raw.toUpperCase();
   if(c.length>=10&&/^[ACGTUN]+$/.test(c)){[...raw].forEach((x,i)=>{if(x!==x.toUpperCase())mask.push(seq.length+i)});seq+=c.replace(/U/g,"T")}else notes.push(l)}
  return[seq,notes.join("\n"),mask]}
 function varPos(notes,mask,n){const m=notes.match(/\b(?:variant_)?pos(?:ition)?\s*[=:]\s*(\d+)/i);

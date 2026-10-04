@@ -5,8 +5,8 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
-from .analysis import analyze
-from .research import KnowledgeBase, evidence, research
+from .analysis import analyze, parse_input
+from .research import KnowledgeBase, evidence, identify_sequence, research
 
 MAX_BODY = 20_000_000
 DISCLAIMER = ("Research tool only. Not medical advice; candidate guides are computational "
@@ -19,7 +19,8 @@ textarea{{width:100%;height:14em;font-family:monospace}}td,th{{padding:2px 8px;t
 variant (e.g. CFTR, rs113993960, NM_000492.4:c.1521_1523del) on header or extra lines, plus a description of the problem.</p>
 <p><button type=button id=up>Upload file</button> <span id=fn>VCF, .vcf.gz, FASTA or text</span>
 <input type=file id=f hidden accept=".vcf,.gz,.fa,.fasta,.txt"></p>
-<textarea name=genome id=g required></textarea><p><label><input type=checkbox name=refresh value=1>
+<textarea name=genome id=g required></textarea><p><label><input type=checkbox name=identify value=1>
+Identify sequence with NCBI BLAST (sends DNA sequence to NCBI; 15-20,000 bases)</label></p><p><label><input type=checkbox name=refresh value=1>
 Force fresh research</label> <button>Research treatments</button></p></form>
 <p>Knowledge base: {papers} papers from {queries} searches.</p>{results}
 <script>
@@ -31,12 +32,29 @@ document.getElementById("g").value=await new Response(b).text()}};
 </script>"""
 
 
-def render_results(a, res):
+def render_results(a, res, identification=None):
     e = html.escape
     t = a["terms"]
     out = [f"<h2>Analysis</h2><p>Sequence length: {a['length']} bp, GC: {a['gc']}</p>",
            f"<p>Detected: genes {e(', '.join(t['genes']) or '-')}; rsIDs {e(', '.join(t['rsids']) or '-')}; "
            f"variants {e(', '.join(t['variants']) or '-')}</p>"]
+    if identification:
+        statuses = {"invalid": "Enter at least 15 DNA bases using A, C, G, T or N.",
+                    "too_long": "Sequence search is limited to 20,000 bases.",
+                    "no_hits": "NCBI BLAST did not return a matching sequence.",
+                    "timeout": "NCBI BLAST did not finish in time. Try again later.",
+                    "unavailable": "NCBI BLAST is currently unavailable.",
+                    "ok": "Matches are database similarities, not a definitive gene identification. Short sequences can match many regions; use a longer sequence for more confidence."}
+        out.append("<h2>Sequence identification (NCBI BLAST)</h2><p><small>" + statuses[identification["status"]] + "</small></p>")
+        if identification["status"] == "ok":
+            if identification["hits"]:
+                out.append("<ol>")
+                for hit in identification["hits"]:
+                    out.append(f"<li><a href='{e(hit['url'])}' rel=noopener>{e(hit['title'])}</a> "
+                               f"<small>{hit['identity']}% identity; {hit['coverage']}% query coverage</small></li>")
+                out.append("</ol>")
+            else:
+                out.append("<p>No sequence matches returned.</p>")
     if a.get("variants"):
         out.append(f"<h2>Variants from VCF ({len(a['variants'])})</h2><table>"
                    "<tr><th>Chrom<th>Pos<th>ID<th>Ref<th>Alt<th>Genes</tr>")
@@ -101,9 +119,14 @@ def make_handler(kb):
             if n > MAX_BODY:
                 return self._send("Too large", 413)
             form = parse_qs(self.rfile.read(n).decode("utf-8", "replace"))
-            a = analyze(form.get("genome", [""])[0])
+            genome = form.get("genome", [""])[0]
+            a = analyze(genome)
             res = research(kb, a["terms"], refresh=bool(form.get("refresh")))
-            self._page(render_results(a, res))
+            identification = None
+            if form.get("identify") and not a.get("variants"):
+                sequence, _ = parse_input(genome)
+                identification = identify_sequence(sequence)
+            self._page(render_results(a, res, identification))
     return Handler
 
 
