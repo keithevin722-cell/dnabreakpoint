@@ -59,6 +59,15 @@ class T(unittest.TestCase):
         self.assertEqual(b["variant_pos"], 10)
         self.assertIsNone(analyze(">CFTR\n" + seq)["variant_pos"])
 
+    def test_render_shows_candidate_breakpoint(self):
+        from dnabreakpoint.server import render_results
+        sequence = "ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC"
+        analysis = analyze(">CFTR pos=3\n" + sequence)
+        html = render_results(analysis, {}, sequence=sequence)
+        self.assertIn("Top-ranked candidate breakpoint", html)
+        self.assertIn("between bases", html)
+        self.assertIn("<mark>|</mark>", html)
+
     def test_abstract_evidence(self):
         kb = KnowledgeBase(":memory:", lambda q: [
             {"id": "MED:2", "title": "Gene therapy results", "abstract": "We used lentiviral vectors.",

@@ -32,7 +32,7 @@ document.getElementById("g").value=await new Response(b).text()}};
 </script>"""
 
 
-def render_results(a, res, identification=None):
+def render_results(a, res, identification=None, sequence=""):
     e = html.escape
     t = a["terms"]
     out = [f"<h2>Analysis</h2><p>Sequence length: {a['length']} bp, GC: {a['gc']}</p>",
@@ -64,6 +64,14 @@ def render_results(a, res, identification=None):
         out.append("</table>")
     if a["cut_sites"]:
         vp = a.get("variant_pos") is not None
+        if sequence:
+            lead = a["cut_sites"][0]
+            boundary = max(0, min(len(sequence), lead["cut_position"]))
+            location = "before base 1" if boundary == 0 else f"between bases {boundary} and {boundary + 1}"
+            left = e(sequence[max(0, boundary - 15):boundary])
+            right = e(sequence[boundary:boundary + 15])
+            out.append(f"<h3>Top-ranked candidate breakpoint</h3><p>Computational candidate, not a validated treatment target: "
+                       f"{lead['strand']} strand, {location}.</p><p><code>{left}<mark>|</mark>{right}</code></p>")
         out.append("<h2>Candidate Cas9 cut sites</h2>"
                    + (f"<p><small>Ranked by distance to the variant at position {a['variant_pos'] + 1}, then GC.</small></p>" if vp
                       else "<p><small>No variant position given (add 'pos=N' or mark the variant in lowercase), so ranked by GC only.</small></p>")
@@ -121,12 +129,12 @@ def make_handler(kb):
             form = parse_qs(self.rfile.read(n).decode("utf-8", "replace"))
             genome = form.get("genome", [""])[0]
             a = analyze(genome)
+            sequence, _ = parse_input(genome)
             res = research(kb, a["terms"], refresh=bool(form.get("refresh")))
             identification = None
             if form.get("identify") and not a.get("variants"):
-                sequence, _ = parse_input(genome)
                 identification = identify_sequence(sequence)
-            self._page(render_results(a, res, identification))
+            self._page(render_results(a, res, identification, sequence))
     return Handler
 
 

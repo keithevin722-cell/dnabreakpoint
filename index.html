@@ -94,8 +94,12 @@ document.getElementById("go").onclick=async()=>{
  if(vars.length)h+="<h2>Variants from VCF</h2><table><tr><th>Chrom<th>Pos<th>ID<th>Ref<th>Alt<th>Genes</tr>"+
   vars.slice(0,50).map(v=>`<tr><td>${esc(v.chrom)}<td>${esc(v.pos)}<td>${esc(v.id)}<td>${esc(v.ref.slice(0,30))}<td>${esc(v.alt.slice(0,30))}<td>${esc(v.genes.join(", "))}</tr>`).join("")+"</table>";
  const cs=sites(seq,vp);
- if(cs.length)h+="<h2>Candidate Cas9 cut sites</h2><p><small>"+(vp==null?"No variant position given (add 'pos=N' or mark the variant in lowercase), so ranked by GC only.":`Ranked by distance to the variant at position ${vp+1}, then GC.`)+"</small></p><table><tr><th>Strand<th>Guide<th>PAM<th>Cut pos<th>GC"+(vp==null?"":"<th>Dist")+"</tr>"+
+ if(cs.length){const s=cs[0],bp=Math.max(0,Math.min(seq.length,s.pos));
+  const where=bp===0?"before base 1":`between bases ${bp} and ${bp+1}`;
+  h+=`<h3>Top-ranked candidate breakpoint</h3><p>Computational candidate, not a validated treatment target: ${s.st} strand, ${where}.</p><p><code>${esc(seq.slice(Math.max(0,bp-15),bp))}<mark>|</mark>${esc(seq.slice(bp,bp+15))}</code></p>`;
+  h+="<h2>Candidate Cas9 cut sites</h2><p><small>"+(vp==null?"No variant position given (add 'pos=N' or mark the variant in lowercase), so ranked by GC only.":`Ranked by distance to the variant at position ${vp+1}, then GC.`)+"</small></p><table><tr><th>Strand<th>Guide<th>PAM<th>Cut pos<th>GC"+(vp==null?"":"<th>Dist")+"</tr>"+
   cs.map(s=>`<tr><td>${s.st}<td><code>${s.guide}</code><td>${s.pam}<td>${s.pos}<td>${s.gc.toFixed(2)}${vp==null?"":`<td>${s.dist}`}</tr>`).join("")+"</table>";
+ }
  const subj=[...t.genes,...t.rsids,...t.variants.map(v=>`"${v}"`)];
  if(!subj.length)h+="<p>No gene, rsID or variant detected; add one to search the literature.</p>";
  else{const all=new Map();let lh="";for(const[n,q]of Object.entries(TOPICS)){
