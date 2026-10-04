@@ -6,4 +6,5 @@ build an ai that can do the research from published material and give you the ne
 with the gene, rsID or HGVS variant. It suggests Cas9 cut-site candidates and searches Europe PMC
 (newest first) for CRISPR/base/prime editing and AAV/lentiviral delivery research. Results are saved in a
 SQLite knowledge base (`knowledge.db`, override with `KB_PATH`) and reused/refreshed weekly.
+No-install version: just open `index.html` in any browser (works offline for cut sites; research needs internet; knowledge base saved in browser localStorage).
 Tests: `python -m unittest discover tests`. Research tool only; not medical advice.

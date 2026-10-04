@@ -1,0 +1,63 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>DNA Breakpoint</title>
+<style>body{font-family:sans-serif;max-width:900px;margin:2em auto;padding:0 1em}
+textarea{width:100%;height:14em;font-family:monospace}td,th{padding:2px 8px;text-align:left}</style>
+<h1>DNA Breakpoint</h1>
+<p><em>Research tool only. Not medical advice; candidate guides are computational suggestions that need expert and clinical validation.</em></p>
+<p>Paste your sequence (FASTA or raw) and include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line.</p>
+<textarea id=g>>CFTR rs113993960
+ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
+<p><button id=go>Research treatments</button> <span id=kb></span></p>
+<div id=out></div>
+<script>
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const STOP=new Set(["DNA","RNA","THE","AND","FOR","WITH","NOT","GENE","SNP","PAM"]);
+const TOPICS={editing:'(CRISPR OR "base editing" OR "prime editing") AND (therapy OR treatment)',
+ delivery:'(AAV OR lentiviral OR "viral vector" OR "adeno-associated") AND (delivery OR gene therapy)'};
+const DB=JSON.parse(localStorage.getItem("kb")||"{}");
+const save=()=>{localStorage.setItem("kb",JSON.stringify(DB));
+ document.getElementById("kb").textContent=`Knowledge base: ${Object.keys(DB).length} searches saved in this browser`};
+save();
+function parse(t){let seq="",notes=[];
+ for(let l of t.split(/\r?\n/)){l=l.trim();if(!l)continue;
+  if(/^[>#;]/.test(l)){notes.push(l.replace(/^[>#;\s]+/,""));continue}
+  const c=l.replace(/[\s\d]/g,"").toUpperCase();
+  if(c.length>=10&&/^[ACGTUN]+$/.test(c))seq+=c.replace(/U/g,"T");else notes.push(l)}
+ return[seq,notes.join("\n")]}
+const uniq=a=>[...new Set(a)];
+function terms(n){return{
+ genes:uniq((n.match(/\b[A-Z][A-Z0-9]{2,9}\b/g)||[]).filter(g=>!STOP.has(g)&&!/^N[MCG]/.test(g))).slice(0,5),
+ rsids:uniq((n.match(/\brs\d{3,}\b/gi)||[]).map(x=>x.toLowerCase())).slice(0,5),
+ variants:uniq(n.match(/\b(?:NM_|NC_|NG_)\d+(?:\.\d+)?:[cgp]\.[^\s,;]+/g)||[]).slice(0,5)}}
+const rc=s=>[...s].reverse().map(c=>({A:"T",C:"G",G:"C",T:"A"})[c]||"N").join("");
+function sites(seq){const out=[];
+ for(const[st,s]of[["+",seq],["-",rc(seq)]])
+  for(let i=20;i<s.length-2;i++)if(s.substr(i+1,2)==="GG"){
+   const guide=s.slice(i-20,i);if(guide.includes("N")||guide.includes("TTTT"))continue;
+   const gc=[...guide].filter(c=>"GC".includes(c)).length/20;
+   out.push({st,guide,pam:s.substr(i,3),pos:st==="+"?i-3:seq.length-i+3,gc})}
+ return out.sort((a,b)=>Math.abs(a.gc-.5)-Math.abs(b.gc-.5)).slice(0,10)}
+async function search(q,fresh){
+ const e=DB[q];
+ if(fresh||!e||Date.now()-e.t>6048e5){
+  try{const r=await fetch("https://www.ebi.ac.uk/europepmc/webservices/rest/search?"+new URLSearchParams(
+   {query:q+" sort_date:y",format:"json",pageSize:15,resultType:"lite"}));
+   const d=await r.json();
+   DB[q]={t:Date.now(),papers:(d.resultList?.result||[]).map(p=>({title:p.title,journal:p.journalTitle,
+    date:p.firstPublicationDate||p.pubYear,url:`https://europepmc.org/article/${p.source}/${p.id}`}))};save()}
+  catch(x){}}
+ return DB[q]?.papers||[]}
+document.getElementById("go").onclick=async()=>{
+ const out=document.getElementById("out");out.textContent="Researching...";
+ const[seq,notes]=parse(document.getElementById("g").value),t=terms(notes);
+ let h=`<h2>Analysis</h2><p>Length: ${seq.length} bp</p><p>Detected: genes ${esc(t.genes.join(", ")||"-")}; rsIDs ${esc(t.rsids.join(", ")||"-")}; variants ${esc(t.variants.join(", ")||"-")}</p>`;
+ const cs=sites(seq);
+ if(cs.length)h+="<h2>Candidate Cas9 cut sites</h2><table><tr><th>Strand<th>Guide<th>PAM<th>Cut pos<th>GC</tr>"+
+  cs.map(s=>`<tr><td>${s.st}<td><code>${s.guide}</code><td>${s.pam}<td>${s.pos}<td>${s.gc.toFixed(2)}</tr>`).join("")+"</table>";
+ const subj=[...t.genes,...t.rsids,...t.variants.map(v=>`"${v}"`)];
+ if(!subj.length)h+="<p>No gene, rsID or variant detected; add one to search the literature.</p>";
+ else for(const[n,q]of Object.entries(TOPICS)){
+  const ps=await search(`(${subj.join(" OR ")}) AND ${q}`);
+  h+=`<h2>Latest research: ${n}</h2><ul>`+(ps.map(p=>`<li><a href="${esc(p.url)}" rel=noopener target=_blank>${esc(p.title)}</a> <small>${esc(p.journal)} ${esc(p.date)}</small></li>`).join("")||"<li>No results (offline?).</li>")+"</ul>"}
+ out.innerHTML=h};
+</script>
