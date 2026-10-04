@@ -9,7 +9,10 @@ textarea{width:100%;height:14em;font-family:monospace}td,th{padding:2px 8px;text
 <input type=file id=f hidden accept=".vcf,.gz,.fa,.fasta,.txt"></p>
 <textarea id=g>>CFTR rs113993960
 ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
-<p><button id=go>Research treatments</button> <span id=kb></span></p>
+<p><label><input type=checkbox id=identify disabled> Identify sequence with NCBI BLAST</label>
+<small>Available on the <a href="https://github.com/keithevin722-cell/dnabreakpoint#usage">Python server</a> only; GitHub Pages cannot make the required browser request to NCBI.</small></p>
+<p><label><input type=checkbox id=fresh> Force fresh research</label>
+<button id=go>Research treatments</button> <span id=kb></span></p>
 <div id=out></div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -102,8 +105,8 @@ document.getElementById("go").onclick=async()=>{
  }
  const subj=[...t.genes,...t.rsids,...t.variants.map(v=>`"${v}"`)];
  if(!subj.length)h+="<p>No gene, rsID or variant detected; add one to search the literature.</p>";
- else{const all=new Map();let lh="";for(const[n,q]of Object.entries(TOPICS)){
-  const ps=await search(`(${subj.join(" OR ")}) AND ${q}`);ps.forEach(p=>all.set(p.url,p));
+ else{const all=new Map(),fresh=document.getElementById("fresh").checked;let lh="";for(const[n,q]of Object.entries(TOPICS)){
+  const ps=await search(`(${subj.join(" OR ")}) AND ${q}`,fresh);ps.forEach(p=>all.set(p.url,p));
   lh+=`<h2>Latest research: ${n}</h2><ul>`+(ps.map(p=>`<li><a href="${esc(p.url)}" rel=noopener target=_blank>${esc(p.title)}</a> <small>${esc(p.journal)} ${esc(p.date)}</small></li>`).join("")||"<li>No results (offline?).</li>")+"</ul>"}
   h+=summary([...all.values()])+lh}
  out.innerHTML=h};
