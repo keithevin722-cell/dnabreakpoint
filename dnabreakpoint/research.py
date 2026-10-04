@@ -1,5 +1,6 @@
 """Literature research (Europe PMC) with a SQLite knowledge base that grows over time."""
 import json
+import re
 import sqlite3
 import time
 import urllib.parse
@@ -77,3 +78,44 @@ def build_queries(terms):
 
 def research(kb, terms, refresh=False):
     return {name: kb.search(q, refresh) for name, q in build_queries(terms).items()}
+
+
+SIGNALS = {
+    "delivery": {
+        "AAV (adeno-associated virus)": r"\bAAV\d*|adeno-associated",
+        "Engineered / synthetic capsid or vector": r"capsid|synthetic|engineered (?:AAV|vector|virus)|directed evolution",
+        "Lentiviral vector": r"lentivir",
+        "Adenoviral vector": r"adenovir",
+        "Lipid nanoparticle (non-viral)": r"lipid nanoparticle|\bLNP",
+        "Ex vivo / electroporation": r"ex vivo|electroporat",
+    },
+    "editor": {
+        "Cas9 nuclease": r"\bCas9\b|CRISPR",
+        "Base editing": r"base[- ]edit|\b[AC]BE\b",
+        "Prime editing": r"prime[- ]edit",
+        "Cas12 / Cas13": r"Cas12|Cas13",
+    },
+    "target": {
+        "Exon": r"\bexon",
+        "Exon skipping / splice site": r"exon skipping|splic",
+        "Intron": r"intron",
+        "Promoter / enhancer": r"promoter|enhancer",
+    },
+}
+
+
+def evidence(res, examples=3):
+    """Rank delivery/editor/target themes by how many retrieved paper titles mention them."""
+    papers = {}
+    for plist in res.values():
+        for p in plist:
+            papers[p["id"]] = p
+    out = {}
+    for group, pats in SIGNALS.items():
+        rows = []
+        for name, pat in pats.items():
+            hits = [p for p in papers.values() if re.search(pat, p["title"], re.I)]
+            if hits:
+                rows.append({"name": name, "count": len(hits), "papers": hits[:examples]})
+        out[group] = sorted(rows, key=lambda r: -r["count"])
+    return out

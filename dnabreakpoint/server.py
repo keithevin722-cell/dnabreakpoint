@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
 from .analysis import analyze
-from .research import KnowledgeBase, research
+from .research import KnowledgeBase, evidence, research
 
 MAX_BODY = 20_000_000
 DISCLAIMER = ("Research tool only. Not medical advice; candidate guides are computational "
@@ -52,6 +52,20 @@ def render_results(a, res):
         out.append("</table>")
     if not res:
         out.append("<p>No gene, rsID or variant detected; add one to search the literature.</p>")
+    else:
+        titles = {"delivery": "Delivery options in the research", "editor": "Editing approaches in the research",
+                  "target": "Target-region themes in the research"}
+        out.append("<h2>Research summary</h2><p><small>Ranked by how many of the newest paper titles mention each "
+                   "item. This shows what the literature is discussing, not a clinical recommendation.</small></p>")
+        for group, rows in evidence(res).items():
+            if not rows:
+                continue
+            out.append(f"<h3>{titles[group]}</h3><ol>")
+            for r in rows:
+                links = " ".join(f"<a href='{e(p['url'])}' rel=noopener title='{e(p['title'])}'>[{i + 1}]</a>"
+                                 for i, p in enumerate(r["papers"]))
+                out.append(f"<li>{e(r['name'])}: {r['count']} papers {links}</li>")
+            out.append("</ol>")
     for name, papers in res.items():
         out.append(f"<h2>Latest research: {e(name)}</h2><ul>")
         for p in papers:

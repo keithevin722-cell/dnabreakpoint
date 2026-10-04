@@ -27,6 +27,21 @@ function parse(t){let seq="",notes=[];
   if(c.length>=10&&/^[ACGTUN]+$/.test(c))seq+=c.replace(/U/g,"T");else notes.push(l)}
  return[seq,notes.join("\n")]}
 const uniq=a=>[...new Set(a)];
+const SIG={"Delivery options in the research":{"AAV (adeno-associated virus)":/\bAAV\d*|adeno-associated/i,
+ "Engineered / synthetic capsid or vector":/capsid|synthetic|engineered (?:AAV|vector|virus)|directed evolution/i,
+ "Lentiviral vector":/lentivir/i,"Adenoviral vector":/adenovir/i,"Lipid nanoparticle (non-viral)":/lipid nanoparticle|\bLNP/i,
+ "Ex vivo / electroporation":/ex vivo|electroporat/i},
+ "Editing approaches in the research":{"Cas9 nuclease":/\bCas9\b|CRISPR/i,"Base editing":/base[- ]edit|\b[AC]BE\b/i,
+ "Prime editing":/prime[- ]edit/i,"Cas12 / Cas13":/Cas12|Cas13/i},
+ "Target-region themes in the research":{"Exon":/\bexon/i,"Exon skipping / splice site":/exon skipping|splic/i,
+ "Intron":/intron/i,"Promoter / enhancer":/promoter|enhancer/i}};
+function summary(ps){
+ let h="<h2>Research summary</h2><p><small>Ranked by how many of the newest paper titles mention each item. This shows what the literature is discussing, not a clinical recommendation.</small></p>";
+ for(const[g,pats]of Object.entries(SIG)){
+  const rows=Object.entries(pats).map(([n,re])=>[n,ps.filter(p=>re.test(p.title||""))]).filter(r=>r[1].length).sort((a,b)=>b[1].length-a[1].length);
+  if(rows.length)h+=`<h3>${g}</h3><ol>`+rows.map(([n,hs])=>`<li>${esc(n)}: ${hs.length} papers `+
+   hs.slice(0,3).map((p,i)=>`<a href="${esc(p.url)}" rel=noopener target=_blank title="${esc(p.title)}">[${i+1}]</a>`).join(" ")+"</li>").join("")+"</ol>"}
+ return h}
 const isVcf=t=>/^##fileformat=VCF/.test(t.trimStart())||/^#CHROM/m.test(t);
 function parseVcf(t){const vs=[],genes=new Set(),rs=new Set();
  for(const l of t.split(/\r?\n/)){if(!l.trim()||l[0]=="#")continue;
@@ -80,8 +95,9 @@ document.getElementById("go").onclick=async()=>{
   cs.map(s=>`<tr><td>${s.st}<td><code>${s.guide}</code><td>${s.pam}<td>${s.pos}<td>${s.gc.toFixed(2)}</tr>`).join("")+"</table>";
  const subj=[...t.genes,...t.rsids,...t.variants.map(v=>`"${v}"`)];
  if(!subj.length)h+="<p>No gene, rsID or variant detected; add one to search the literature.</p>";
- else for(const[n,q]of Object.entries(TOPICS)){
-  const ps=await search(`(${subj.join(" OR ")}) AND ${q}`);
-  h+=`<h2>Latest research: ${n}</h2><ul>`+(ps.map(p=>`<li><a href="${esc(p.url)}" rel=noopener target=_blank>${esc(p.title)}</a> <small>${esc(p.journal)} ${esc(p.date)}</small></li>`).join("")||"<li>No results (offline?).</li>")+"</ul>"}
+ else{const all=new Map();let lh="";for(const[n,q]of Object.entries(TOPICS)){
+  const ps=await search(`(${subj.join(" OR ")}) AND ${q}`);ps.forEach(p=>all.set(p.url,p));
+  lh+=`<h2>Latest research: ${n}</h2><ul>`+(ps.map(p=>`<li><a href="${esc(p.url)}" rel=noopener target=_blank>${esc(p.title)}</a> <small>${esc(p.journal)} ${esc(p.date)}</small></li>`).join("")||"<li>No results (offline?).</li>")+"</ul>"}
+  h+=summary([...all.values()])+lh}
  out.innerHTML=h};
 </script>

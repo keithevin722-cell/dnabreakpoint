@@ -1,6 +1,6 @@
 import unittest
 from dnabreakpoint.analysis import analyze
-from dnabreakpoint.research import KnowledgeBase, research
+from dnabreakpoint.research import KnowledgeBase, evidence, research
 
 FAKE = [{"id": "MED:1", "title": "New AAV CRISPR", "authors": "A", "journal": "J",
          "date": "2026-01-01", "year": "2026", "url": "u"}]
@@ -21,6 +21,16 @@ class T(unittest.TestCase):
         self.assertEqual(len(a["variants"]), 2)
         self.assertEqual(a["terms"]["rsids"], ["rs113993960"])
         self.assertEqual(a["terms"]["genes"], ["BRCA1", "CFTR"])
+
+    def test_evidence(self):
+        kb = KnowledgeBase(":memory:", lambda q: [
+            {"id": "MED:1", "title": "AAV9 capsid delivery of CRISPR base editor to exon 5", "authors": "",
+             "journal": "", "date": "2026-01-01", "year": "2026", "url": "u"}])
+        ev = evidence(research(kb, analyze(">CFTR\nATGC")["terms"]))
+        self.assertEqual(ev["delivery"][0]["name"], "AAV (adeno-associated virus)")
+        self.assertEqual(ev["delivery"][0]["count"], 1)
+        self.assertTrue(any(r["name"] == "Base editing" for r in ev["editor"]))
+        self.assertEqual(ev["target"][0]["name"], "Exon")
 
     def test_kb_learns(self):
         calls = []
