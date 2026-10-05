@@ -71,8 +71,9 @@ else try{
    b.textContent=r.name;t.dateTime=r.at.toISOString();t.textContent=r.at.toLocaleString();h.append(b,t);
    const p=document.createElement("p");p.textContent=r.body;d.append(h,p);return d}));
   if(near)log.scrollTop=log.scrollHeight};
- let stopMessages;
+ let stopMessages,currentUser=null;
  onAuthStateChanged(auth,user=>{
+  currentUser=user;
   if(user&&!user.providerData.some(p=>p.providerId==="google.com")){signOut(auth);return}
   $("authbox").hidden=!!user;$("chat").hidden=!user;
   if(stopMessages){stopMessages();stopMessages=null}
@@ -98,11 +99,14 @@ else try{
  $("cf").onsubmit=async e=>{e.preventDefault();const body=$("msg").value.trim();if(!body)return;
   const typed=$("nm").value.trim();localStorage.setItem("chatName",typed);
   $("send").disabled=true;$("err").textContent="";
+  if(!currentUser){$("err").textContent="Sign in with Google before posting.";$("send").disabled=false;return}
   try{const batch=writeBatch(db);
-   batch.set(doc(db,"lastPost",user.uid),{t:serverTimestamp()});
-   batch.set(doc(collection(db,"messages")),{name:typed||"Anonymous",body,createdAt:serverTimestamp(),uid:user.uid});
+   batch.set(doc(db,"lastPost",currentUser.uid),{t:serverTimestamp()});
+   batch.set(doc(collection(db,"messages")),{name:typed||"Anonymous",body,createdAt:serverTimestamp(),uid:currentUser.uid});
    await batch.commit();$("msg").value="";count()}
-  catch{$("err").textContent="Message not sent. Check your connection or wait a few seconds before trying again."}
+  catch(error){console.error("Chat message failed",error);$("err").textContent=error.code==="permission-denied"
+   ?"Firebase blocked this post. Check that the latest Firestore rules are published and try signing in again."
+   :"Message not sent. Check your connection and try again."}
   $("send").disabled=false};
 }catch{$("off").textContent="Chat could not load. Please try again later.";$("off").hidden=false}
 </script>
