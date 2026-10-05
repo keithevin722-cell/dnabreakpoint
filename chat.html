@@ -26,19 +26,27 @@ button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--accent
 button:disabled{opacity:.6;cursor:wait}
 #err{color:#c0392b}
 .sr{position:absolute;left:-9999px}
+.account{display:flex;align-items:center;gap:.8em;color:var(--muted);font-size:.9rem}
+#logout{background:transparent;color:var(--text);border-color:var(--line);padding:.35em .8em}
 </style>
 <nav class=site-nav aria-label="Main navigation">
 <a class=nav-brand href="index.html">DNA Breakpoint</a>
 <a href="index.html">Back to tool</a>
 </nav>
 <h1>Community chat</h1>
-<p><em>Messages are public and visible to everyone. Do not post genetic data, sequences or personal health information. The site owner can hide messages.</em></p>
+<p><em>Messages are visible to users signed in with Google. Do not post genetic data, sequences or personal health information. The site owner can remove messages.</em></p>
 <p id=off hidden>Chat is not enabled yet.</p>
+<section id=authbox hidden>
+<p>Sign in with Google to join the chat.</p>
+<button type=button id=google>Sign in with Google</button>
+<p id=autherr role=alert></p>
+</section>
 <section id=chat hidden>
+<p class=account><span>Signed in as <strong id=google-name></strong></span><button type=button id=logout>Sign out</button></p>
 <div id=log role=log aria-live=polite aria-label="Chat messages"></div>
 <form id=cf>
-<label for=nm>Name (optional - leave blank to post as Anonymous)</label>
-<input id=nm maxlength=40 placeholder="Anonymous" autocomplete=nickname>
+<label for=nm>Name shown in chat (optional)</label>
+<input id=nm maxlength=40 placeholder="Google display name" autocomplete=nickname>
 <label for=msg>Message</label>
 <textarea id=msg maxlength=500 required placeholder="Write a message (Ctrl+Enter to send)"></textarea>
 <div class=row><button id=send>Send</button><small id=count>0/500</small><small id=err role=alert></small></div>
@@ -50,11 +58,11 @@ const $=id=>document.getElementById(id);
 const CDN="https://www.gstatic.com/firebasejs/12.19.0/firebase-";
 if(!FIREBASE.apiKey||!FIREBASE.appId)$("off").hidden=false;
 else try{
- const[{initializeApp},{getAuth,signInAnonymously},fs]=await Promise.all([import(CDN+"app.js"),import(CDN+"auth.js"),import(CDN+"firestore.js")]);
+ const[{initializeApp},authSdk,fs]=await Promise.all([import(CDN+"app.js"),import(CDN+"auth.js"),import(CDN+"firestore.js")]);
+ const{getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged}=authSdk;
  const{getFirestore,collection,query,orderBy,limit,onSnapshot,writeBatch,doc,serverTimestamp}=fs;
- const app=initializeApp(FIREBASE),db=getFirestore(app);
- const{user}=await signInAnonymously(getAuth(app));
- $("chat").hidden=false;$("nm").value=localStorage.getItem("chatName")||"";
+ const app=initializeApp(FIREBASE),db=getFirestore(app),auth=getAuth(app);
+ const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:"select_account"});
  const log=$("log");let first=true;
  const draw=rows=>{const near=first||log.scrollHeight-log.scrollTop-log.clientHeight<80;first=false;
   if(!rows.length){const p=document.createElement("p");p.textContent="No messages yet. Say hello!";log.replaceChildren(p);return}
@@ -63,9 +71,27 @@ else try{
    b.textContent=r.name;t.dateTime=r.at.toISOString();t.textContent=r.at.toLocaleString();h.append(b,t);
    const p=document.createElement("p");p.textContent=r.body;d.append(h,p);return d}));
   if(near)log.scrollTop=log.scrollHeight};
- onSnapshot(query(collection(db,"messages"),orderBy("createdAt","desc"),limit(50)),
-  snap=>draw(snap.docs.map(d=>{const x=d.data({serverTimestamps:"estimate"});return{name:x.name,body:x.body,at:x.createdAt.toDate()}}).reverse()),
-  ()=>{$("err").textContent="Could not load messages."});
+ let stopMessages;
+ onAuthStateChanged(auth,user=>{
+  if(user&&!user.providerData.some(p=>p.providerId==="google.com")){signOut(auth);return}
+  $("authbox").hidden=!!user;$("chat").hidden=!user;
+  if(stopMessages){stopMessages();stopMessages=null}
+  if(!user)return;
+  $("google-name").textContent=user.displayName||"Google account";
+  $("nm").value=localStorage.getItem("chatName")||user.displayName||"";
+  stopMessages=onSnapshot(query(collection(db,"messages"),orderBy("createdAt","desc"),limit(50)),
+   snap=>draw(snap.docs.map(d=>{const x=d.data({serverTimestamps:"estimate"});return{name:x.name,body:x.body,at:x.createdAt.toDate()}}).reverse()),
+   ()=>{$("err").textContent="Could not load messages."});
+ });
+ $("google").onclick=async()=>{$("google").disabled=true;$("autherr").textContent="";
+  try{await signInWithPopup(auth,provider)}catch(e){
+   $("autherr").textContent=e.code==="auth/unauthorized-domain"
+    ?"Add this site to Firebase Authentication's authorized domains."
+    :e.code==="auth/operation-not-allowed"
+     ?"Enable Google sign-in in Firebase Authentication settings."
+     :"Google sign-in didn't finish. Please try again."}
+  $("google").disabled=false};
+ $("logout").onclick=()=>signOut(auth);
  const count=()=>{$("count").textContent=`${$("msg").value.length}/500`};
  $("msg").oninput=count;
  $("msg").onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();$("cf").requestSubmit()}};
@@ -76,7 +102,7 @@ else try{
    batch.set(doc(db,"lastPost",user.uid),{t:serverTimestamp()});
    batch.set(doc(collection(db,"messages")),{name:typed||"Anonymous",body,createdAt:serverTimestamp(),uid:user.uid});
    await batch.commit();$("msg").value="";count()}
-  catch{$("err").textContent="Message not sent. Please wait a few seconds and try again."}
+  catch{$("err").textContent="Message not sent. Check your connection or wait a few seconds before trying again."}
   $("send").disabled=false};
 }catch{$("off").textContent="Chat could not load. Please try again later.";$("off").hidden=false}
 </script>
