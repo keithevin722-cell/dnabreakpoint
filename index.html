@@ -1,16 +1,40 @@
 <!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>DNA Breakpoint</title>
-<style>body{font-family:sans-serif;max-width:900px;margin:2em auto;padding:0 1em}
-textarea{width:100%;height:14em;font-family:monospace}td,th{padding:2px 8px;text-align:left}
-.vectors{margin-top:2.5em;border-top:1px solid #ccc;padding-top:1em}
-.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1em;margin-top:1em}
-.vcard{border:1px solid #bbb;border-radius:4px;padding:1em;display:flex;flex-direction:column}
-.vcard h3{margin:0 0 .6em;font-size:1.05em}
+<style>
+:root{--bg:#f4f7fa;--card:#fff;--text:#1b2733;--muted:#5b6b7b;--line:#d9e1e8;--accent:#0f9d8a;--accent2:#2a6fdb;--accent-ink:#fff;--code:#eaf1f6;--mark:#ffe58a}
+@media(prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#161f29;--text:#e3eaf1;--muted:#93a4b5;--line:#263443;--accent:#2fd0b5;--accent2:#6aa2ff;--accent-ink:#06201b;--code:#1d2936;--mark:#6b5a10}}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.55;background:var(--bg);color:var(--text);max-width:960px;margin:0 auto;padding:0 1.2em 3em}
+h1{font-size:2rem;margin:1.2em 0 .3em;letter-spacing:-.02em;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block}
+h2{font-size:1.3rem;margin:1.8em 0 .5em;padding-bottom:.3em;border-bottom:2px solid var(--line)}
+h3{font-size:1.05rem;margin:1.2em 0 .4em}
+a{color:var(--accent2)}
+p em{display:block;border-left:4px solid var(--accent);background:var(--card);padding:.6em .9em;border-radius:0 6px 6px 0;color:var(--muted);font-style:normal;font-size:.9rem}
+small{color:var(--muted)}
+textarea{width:100%;height:14em;font:.9rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.8em;resize:vertical}
+textarea:focus,button:focus-visible,.vlink:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:.5em 1.1em}
+button:hover{filter:brightness(1.08)}
+button#up{background:transparent;color:var(--accent)}
+input[type=checkbox]{accent-color:var(--accent)}
+code{background:var(--code);padding:.1em .35em;border-radius:4px;font-size:.9em}
+mark{background:var(--mark);color:inherit;padding:0 .2em;border-radius:3px}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:.9rem}
+td,th{padding:.45em .8em;text-align:left;border-bottom:1px solid var(--line)}
+th{background:var(--code);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+ul,ol{padding-left:1.3em}li{margin:.3em 0}
+#out{margin-top:1.5em}
+.vectors{margin-top:3em}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.1em;margin-top:1em}
+.vcard{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:10px;padding:1.1em;display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s}
+.vcard:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.12)}
+.vcard h3{margin:0 0 .4em}
 .vcard dl{margin:0 0 1em;flex:1}
-.vcard dt{font-size:.7em;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#555;margin-top:.8em}
+.vcard dt{font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin-top:.9em}
 .vcard dd{margin:.15em 0 0}
-.vlink{display:block;text-align:center;border:1px solid #333;border-radius:3px;padding:.5em;color:#000;text-decoration:none;font-size:.9em}
-.vlink:hover,.vlink:focus{background:#333;color:#fff}</style>
+.vlink{display:block;text-align:center;border:1px solid var(--accent2);border-radius:8px;padding:.55em;color:var(--accent2);text-decoration:none;font-size:.9rem;font-weight:600}
+.vlink:hover{background:var(--accent2);color:#fff}
+</style>
 <h1>DNA Breakpoint</h1>
 <p><em>Research tool only. Not medical advice; candidate guides are computational suggestions that need expert and clinical validation.</em></p>
 <p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
