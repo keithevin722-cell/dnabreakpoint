@@ -1,0 +1,83 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Chat - DNA Breakpoint</title>
+<style>
+:root{--bg:#f4f7fa;--card:#fff;--text:#1b2733;--muted:#5b6b7b;--line:#d9e1e8;--accent:#0f9d8a;--accent2:#2a6fdb;--accent-ink:#fff;--code:#eaf1f6}
+@media(prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#161f29;--text:#e3eaf1;--muted:#93a4b5;--line:#263443;--accent:#2fd0b5;--accent2:#6aa2ff;--accent-ink:#06201b;--code:#1d2936}}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.55;background:var(--bg);color:var(--text);max-width:720px;margin:0 auto;padding:0 1.2em 3em}
+a{color:var(--accent2)}
+small{color:var(--muted)}
+.site-nav{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 -1.2em;padding:.55em 1.2em;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(12px)}
+.nav-brand{color:var(--text);font-weight:750;text-decoration:none}
+h1{font-size:1.8rem;margin:1.2em 0 .3em;letter-spacing:-.02em}
+p em{display:block;border-left:4px solid var(--accent);background:var(--card);padding:.6em .9em;border-radius:0 6px 6px 0;color:var(--muted);font-style:normal;font-size:.9rem}
+#log{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.5em 1em;height:55vh;overflow-y:auto;margin:1em 0}
+.m{padding:.6em 0;border-bottom:1px solid var(--line)}
+.m:last-child{border-bottom:0}
+.m b{color:var(--accent)}
+.m time{font-size:.75rem;color:var(--muted);margin-left:.4em}
+.m p{margin:.2em 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+label{display:block;font-size:.85rem;color:var(--muted);margin-top:.6em}
+input,textarea{width:100%;font:inherit;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.55em .7em}
+textarea{height:6em;resize:vertical}
+input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;align-items:center;gap:.8em;margin-top:.7em}
+button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:.5em 1.2em}
+button:disabled{opacity:.6;cursor:wait}
+#err{color:#c0392b}
+.sr{position:absolute;left:-9999px}
+</style>
+<nav class=site-nav aria-label="Main navigation">
+<a class=nav-brand href="index.html">DNA Breakpoint</a>
+<a href="index.html">Back to tool</a>
+</nav>
+<h1>Community chat</h1>
+<p><em>Messages are public and visible to everyone. Do not post genetic data, sequences or personal health information. The site owner can hide messages.</em></p>
+<p id=off hidden>Chat is not enabled yet.</p>
+<section id=chat hidden>
+<div id=log role=log aria-live=polite aria-label="Chat messages"></div>
+<form id=cf>
+<label for=nm>Name (optional - leave blank to post as Anonymous)</label>
+<input id=nm maxlength=40 placeholder="Anonymous" autocomplete=nickname>
+<label for=msg>Message</label>
+<textarea id=msg maxlength=500 required placeholder="Write a message (Ctrl+Enter to send)"></textarea>
+<div class=row><button id=send>Send</button><small id=count>0/500</small><small id=err role=alert></small></div>
+</form>
+</section>
+<script src="config.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+(async()=>{
+ if(!SUPABASE.url||!SUPABASE.anonKey){$("off").hidden=false;return}
+ try{await new Promise((ok,fail)=>{const s=document.createElement("script");
+  s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js";
+  s.integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok";
+  s.crossOrigin="anonymous";s.onload=ok;s.onerror=fail;document.head.append(s)})}
+ catch{$("off").textContent="Chat could not load. Please try again later.";$("off").hidden=false;return}
+ const sb=supabase.createClient(SUPABASE.url,SUPABASE.anonKey,{auth:{persistSession:false}});
+ let cid=localStorage.getItem("cid");if(!cid){cid=crypto.randomUUID();localStorage.setItem("cid",cid)}
+ $("chat").hidden=false;$("nm").value=localStorage.getItem("chatName")||"";
+ const log=$("log");let first=true;
+ const draw=rows=>{const near=first||log.scrollHeight-log.scrollTop-log.clientHeight<80;first=false;
+  if(!rows.length){const p=document.createElement("p");p.textContent="No messages yet. Say hello!";log.replaceChildren(p);return}
+  log.replaceChildren(...rows.map(r=>{const d=document.createElement("div");d.className="m";
+   const h=document.createElement("div"),b=document.createElement("b"),t=document.createElement("time");
+   b.textContent=r.name;t.dateTime=r.created_at;t.textContent=new Date(r.created_at).toLocaleString();h.append(b,t);
+   const p=document.createElement("p");p.textContent=r.body;d.append(h,p);return d}));
+  if(near)log.scrollTop=log.scrollHeight};
+ const refresh=async()=>{const{data,error}=await sb.from("chat_messages").select("id,name,body,created_at")
+  .order("created_at",{ascending:false}).limit(50);if(!error&&data)draw(data.reverse())};
+ const count=()=>{$("count").textContent=`${$("msg").value.length}/500`};
+ $("msg").oninput=count;
+ $("msg").onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();$("cf").requestSubmit()}};
+ $("cf").onsubmit=async e=>{e.preventDefault();const body=$("msg").value.trim();if(!body)return;
+  const typed=$("nm").value.trim();localStorage.setItem("chatName",typed);
+  $("send").disabled=true;$("err").textContent="";
+  const{error}=await sb.from("chat_messages").insert({client_id:cid,name:typed||"Anonymous",body});
+  if(error)$("err").textContent=/wait/i.test(error.message)?"Please wait a few seconds before posting again.":"Message could not be sent.";
+  else{$("msg").value="";count();await refresh()}
+  $("send").disabled=false};
+ await refresh();
+ setInterval(()=>{if(!document.hidden)refresh()},5000);
+})();
+</script>

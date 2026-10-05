@@ -46,14 +46,35 @@ html{scroll-behavior:smooth}
 .nav-links a:hover,.nav-links a:focus-visible{background:var(--code);color:var(--accent2);outline:2px solid transparent}
 #top,#out,#vectors{scroll-margin-top:5rem}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.nav-links button{background:transparent;border:1px solid var(--line);color:var(--text);padding:.3rem .7rem;font-size:.85rem;white-space:nowrap}
+#acct{display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:var(--muted);white-space:nowrap}
+dialog{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:1.3em;max-width:min(92vw,420px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{margin-top:0;border:0}
+dialog input[type=email]{width:100%;padding:.55em .7em;margin:.5em 0;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px}
+.dlg-actions{display:flex;gap:.5em;margin-top:.8em}
+#stats{margin-top:2.5em;text-align:center}
 </style>
 <nav class=site-nav aria-label="Main navigation">
 <a class=nav-brand href="#top">DNA Breakpoint</a>
 <div class=nav-links>
 <a href="#out">Knowledge</a><a href="#vectors">Vectors</a>
+<a href="chat.html" id=chatlink hidden>Chat</a>
 <a href="https://europepmc.org/search?query=CRISPR%20gene%20therapy%20delivery" target=_blank rel="noopener noreferrer">Europe PMC</a>
 <a href="https://pubmed.ncbi.nlm.nih.gov/?term=CRISPR+gene+therapy+delivery&sort=date" target=_blank rel="noopener noreferrer">PubMed</a>
+<button type=button id=signin hidden>Sign in</button>
+<span id=acct hidden><span id=who></span><button type=button id=signout>Sign out</button></span>
 </div></nav>
+<dialog id=login aria-labelledby=lt>
+<form id=lf method=dialog>
+<h2 id=lt>Sign in with email</h2>
+<p><small>We email you a one-time sign-in link. Your email address is stored with our authentication provider (Supabase) to identify signed-in users. Sequences you paste are never sent to it.</small></p>
+<label for=em>Email address</label>
+<input id=em type=email required autocomplete=email placeholder="you@example.com">
+<p id=lmsg role=status aria-live=polite></p>
+<div class=dlg-actions><button id=lsend type=submit value=send>Send sign-in link</button><button type=button id=lclose>Close</button></div>
+</form>
+</dialog>
 <h1 id=top>DNA Breakpoint</h1>
 <p><em>Research tool only. Not medical advice; candidate guides are computational suggestions that need expert and clinical validation.</em></p>
 <p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
@@ -92,7 +113,9 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <a class=vlink href="https://pubmed.ncbi.nlm.nih.gov/?term=%22oncolytic+virus%22+AND+CRISPR&sort=date" target=_blank rel="noopener noreferrer">Search active CRISPR/Vectors on PubMed</a></article>
 </div>
 </section>
+<p id=stats hidden><small></small></p>
 <a class=top-link href="#top" aria-label="Back to top" title="Back to top">&#8593;</a>
+<script src="config.js"></script>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const STOP=new Set(["DNA","RNA","THE","AND","FOR","WITH","NOT","GENE","SNP","PAM"]);
@@ -204,4 +227,28 @@ document.getElementById("go").onclick=async()=>{
   lh+=`<h2>${TOPIC_LABELS[n]||n}</h2><ul>`+(ps.map(p=>`<li><a href="${esc(p.url)}" rel=noopener target=_blank>${esc(p.title)}</a> <small>${esc(p.journal)} ${esc(p.date)}</small></li>`).join("")||"<li>No results (offline?).</li>")+"</ul>"}
   h+=summary([...all.values()])+lh}
  out.innerHTML=h};
+(async()=>{
+ if(!SUPABASE.url||!SUPABASE.anonKey)return;
+ const $=id=>document.getElementById(id);
+ $("chatlink").hidden=false;
+ try{await new Promise((ok,fail)=>{const s=document.createElement("script");
+  s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js";
+  s.integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok";
+  s.crossOrigin="anonymous";s.onload=ok;s.onerror=fail;document.head.append(s)})}catch{return}
+ const sb=supabase.createClient(SUPABASE.url,SUPABASE.anonKey);
+ const render=s=>{const u=s?.user;$("signin").hidden=!!u;$("acct").hidden=!u;$("who").textContent=u?.email||""};
+ sb.auth.onAuthStateChange((_e,s)=>render(s));
+ render((await sb.auth.getSession()).data.session);
+ $("signin").onclick=()=>{$("lmsg").textContent="";$("login").showModal()};
+ $("lclose").onclick=()=>$("login").close();
+ $("signout").onclick=()=>sb.auth.signOut();
+ $("lf").onsubmit=async e=>{e.preventDefault();const b=$("lsend");b.disabled=true;
+  const{error}=await sb.auth.signInWithOtp({email:$("em").value.trim(),options:{emailRedirectTo:location.origin+location.pathname}});
+  $("lmsg").textContent=error?"Could not send the link. Please try again later.":"Check your email for the sign-in link.";b.disabled=false};
+ try{let vid=localStorage.getItem("vid");if(!vid){vid=crypto.randomUUID();localStorage.setItem("vid",vid)}
+  if(!sessionStorage.getItem("hit")){sessionStorage.setItem("hit","1");await sb.from("page_hits").insert({visitor_id:vid})}
+  const{data}=await sb.rpc("site_stats");
+  if(data){$("stats").hidden=false;$("stats").querySelector("small").textContent=`${data.views.toLocaleString()} page views from ${data.visitors.toLocaleString()} unique visitors`}
+ }catch{}
+})();
 </script>
