@@ -38,11 +38,26 @@ ul,ol{padding-left:1.3em}li{margin:.3em 0}
 html{scroll-behavior:smooth}
 .top-link{position:fixed;right:max(1rem,calc((100vw - 960px)/2));bottom:1rem;z-index:10;display:grid;place-items:center;width:48px;aspect-ratio:1;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--accent2);text-decoration:none;font-size:1.65rem;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .top-link:hover,.top-link:focus-visible{background:var(--code);outline:2px solid var(--accent);outline-offset:2px}
+.site-nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:1rem;margin:0 -1.2em;padding:.55em 1.2em;border-bottom:1px solid var(--line);background:var(--bg);background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(12px)}
+.nav-brand{flex:0 0 auto;color:var(--text);font-weight:700;text-decoration:none;white-space:nowrap}
+.nav-links{display:flex;align-items:center;gap:.2em;overflow-x:auto;margin-left:auto;scrollbar-width:thin}
+.nav-links a{padding:.35em .55em;border-radius:6px;color:var(--muted);font-size:.88rem;text-decoration:none;white-space:nowrap}
+.nav-links a:hover,.nav-links a:focus-visible{background:var(--code);color:var(--accent2);outline-color:var(--accent)}
+#top,#research,#vectors{scroll-margin-top:5rem}
+@media(max-width:650px){.site-nav{align-items:flex-start;flex-direction:column;gap:.2em}.nav-links{width:100%;margin-left:0}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style>
+<nav class=site-nav aria-label="Main navigation">
+<a class=nav-brand href="#top">DNA Breakpoint</a>
+<div class=nav-links>
+<a href="#research">Research</a><a href="#vectors">Vectors</a>
+<a href="https://pubmed.ncbi.nlm.nih.gov/?term=CRISPR+gene+therapy&sort=date" target=_blank rel="noopener noreferrer">PubMed</a>
+<a href="https://europepmc.org/search?query=CRISPR%20gene%20therapy" target=_blank rel="noopener noreferrer">Europe PMC</a>
+<a href="https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE_TYPE=BlastSearch&PROGRAM=blastn" target=_blank rel="noopener noreferrer">NCBI BLAST</a>
+</div></nav>
 <h1 id=top>DNA Breakpoint</h1>
 <p><em>Research tool only. Not medical advice; candidate guides are computational suggestions that need expert and clinical validation.</em></p>
-<p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
+<p id=research>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
 <p><button type=button id=up>Upload file</button> <span id=fn>VCF, .vcf.gz, FASTA or text</span>
 <input type=file id=f hidden accept=".vcf,.gz,.fa,.fasta,.txt"></p>
 <textarea id=g>>CFTR rs113993960
@@ -52,7 +67,7 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <p><label><input type=checkbox id=fresh> Force fresh research</label>
 <button id=go>Research treatments</button> <span id=kb></span></p>
 <div id=out></div>
-<section class=vectors aria-labelledby=vt>
+<section class=vectors id=vectors aria-labelledby=vt>
 <h2 id=vt>Emerging Therapeutic Vectors &amp; Delivery Platforms</h2>
 <p><small>Summary for orientation only; verify payload limits and approval status against current primary sources.</small></p>
 <div class=vgrid>
