@@ -96,7 +96,9 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const STOP=new Set(["DNA","RNA","THE","AND","FOR","WITH","NOT","GENE","SNP","PAM"]);
 const TOPICS={editing:'(CRISPR OR "base editing" OR "prime editing") AND (therapy OR treatment)',
- delivery:'(AAV OR lentiviral OR "viral vector" OR "adeno-associated") AND (delivery OR gene therapy)'};
+ delivery:'(AAV OR lentiviral OR "viral vector" OR "adeno-associated") AND (delivery OR gene therapy)',
+ tcell:'("T cell" OR "T-cell" OR "CAR T" OR CAR-T OR "TCR-T" OR "engineered T cell") AND (therapy OR treatment OR immunotherapy)'};
+const TOPIC_LABELS={editing:"Editing research",delivery:"Delivery research",tcell:"Recent T-cell treatment research"};
 const DB=JSON.parse(localStorage.getItem("kb")||"{}");
 const save=()=>{localStorage.setItem("kb",JSON.stringify(DB));
  document.getElementById("kb").textContent=`Knowledge base: ${Object.keys(DB).length} searches saved in this browser`};
@@ -118,7 +120,10 @@ const SIG={"Delivery options in the research":{"AAV (adeno-associated virus)":/\
  "Editing approaches in the research":{"Cas9 nuclease":/\bCas9\b|CRISPR/i,"Base editing":/base[- ]edit|\b[AC]BE\b/i,
  "Prime editing":/prime[- ]edit/i,"Cas12 / Cas13":/Cas12|Cas13/i},
  "Target-region themes in the research":{"Exon":/\bexon/i,"Exon skipping / splice site":/exon skipping|splic/i,
- "Intron":/intron/i,"Promoter / enhancer":/promoter|enhancer/i}};
+ "Intron":/intron/i,"Promoter / enhancer":/promoter|enhancer/i},
+ "T-cell treatment evidence":{"CAR-T therapy":/\bCAR[- ]?T\b|chimeric antigen receptor/i,
+ "TCR-engineered T cells":/\bTCR[- ]?T\b|T-cell receptor|TCR-engineered/i,
+ "Adoptive T-cell therapy":/adoptive T[- ]cell|engineered T[- ]cell/i}};
 function summary(ps){
  let h="<h2>Research summary</h2><p><small>Ranked by how many of the newest papers mention each item in the title or abstract. This shows what the literature is discussing, not a clinical recommendation.</small></p>";
  for(const[g,pats]of Object.entries(SIG)){
@@ -185,7 +190,7 @@ document.getElementById("go").onclick=async()=>{
  if(!subj.length)h+="<p>No gene, rsID or variant detected; add one to search the literature.</p>";
  else{const all=new Map(),fresh=document.getElementById("fresh").checked;let lh="";for(const[n,q]of Object.entries(TOPICS)){
   const ps=await search(`(${subj.join(" OR ")}) AND ${q}`,fresh);ps.forEach(p=>all.set(p.url,p));
-  lh+=`<h2>Latest research: ${n}</h2><ul>`+(ps.map(p=>`<li><a href="${esc(p.url)}" rel=noopener target=_blank>${esc(p.title)}</a> <small>${esc(p.journal)} ${esc(p.date)}</small></li>`).join("")||"<li>No results (offline?).</li>")+"</ul>"}
+  lh+=`<h2>${TOPIC_LABELS[n]||n}</h2><ul>`+(ps.map(p=>`<li><a href="${esc(p.url)}" rel=noopener target=_blank>${esc(p.title)}</a> <small>${esc(p.journal)} ${esc(p.date)}</small></li>`).join("")||"<li>No results (offline?).</li>")+"</ul>"}
   h+=summary([...all.values()])+lh}
  out.innerHTML=h};
 </script>

@@ -84,7 +84,7 @@ def render_results(a, res, identification=None, sequence=""):
         out.append("<p>No gene, rsID or variant detected; add one to search the literature.</p>")
     else:
         titles = {"delivery": "Delivery options in the research", "editor": "Editing approaches in the research",
-                  "target": "Target-region themes in the research"}
+                  "target": "Target-region themes in the research", "tcell": "T-cell treatment evidence"}
         out.append("<h2>Research summary</h2><p><small>Ranked by how many of the newest papers mention each "
                    "item in the title or abstract. This shows what the literature is discussing, not a clinical recommendation.</small></p>")
         for group, rows in evidence(res).items():
@@ -96,8 +96,10 @@ def render_results(a, res, identification=None, sequence=""):
                                  for i, p in enumerate(r["papers"]))
                 out.append(f"<li>{e(r['name'])}: {r['count']} papers {links}</li>")
             out.append("</ol>")
+    topic_titles = {"editing": "Editing research", "delivery": "Delivery research",
+                    "tcell": "Recent T-cell treatment research"}
     for name, papers in res.items():
-        out.append(f"<h2>Latest research: {e(name)}</h2><ul>")
+        out.append(f"<h2>{topic_titles.get(name, 'Latest research: ' + e(name))}</h2><ul>")
         for p in papers:
             out.append(f"<li><a href='{e(p['url'])}' rel=noopener>{e(p['title'])}</a> "
                        f"<small>{e(p['journal'])} {e(p['date'] or p['year'])}</small></li>")

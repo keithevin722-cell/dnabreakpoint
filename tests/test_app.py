@@ -1,7 +1,7 @@
 import unittest
 from dnabreakpoint.analysis import analyze
 from unittest.mock import patch
-from dnabreakpoint.research import KnowledgeBase, evidence, identify_sequence, research
+from dnabreakpoint.research import KnowledgeBase, build_queries, evidence, identify_sequence, research
 
 FAKE = [{"id": "MED:1", "title": "New AAV CRISPR", "authors": "A", "journal": "J",
          "date": "2026-01-01", "year": "2026", "url": "u"}]
@@ -75,13 +75,28 @@ class T(unittest.TestCase):
         ev = evidence(research(kb, analyze(">CFTR\nATGC")["terms"]))
         self.assertEqual(ev["delivery"][0]["name"], "Lentiviral vector")
 
+    def test_tcell_research(self):
+        calls = []
+        paper = {"id": "MED:3", "title": "CAR-T cell therapy research for CFTR", "abstract": "Engineered T cells.",
+                 "authors": "", "journal": "Journal", "date": "2026-02-01", "year": "2026", "url": "https://example.org"}
+        kb = KnowledgeBase(":memory:", lambda query: calls.append(query) or [paper])
+        terms = analyze(">CFTR\nATGC")["terms"]
+        queries = build_queries(terms)
+        self.assertIn("CFTR", queries["tcell"])
+        self.assertIn("CAR-T", queries["tcell"])
+        results = research(kb, terms)
+        self.assertIn("Recent T-cell treatment research", __import__("dnabreakpoint.server", fromlist=["render_results"]).render_results(
+            analyze(">CFTR\nATGC"), results))
+        self.assertTrue(any(row["name"] == "CAR-T therapy" for row in evidence(results)["tcell"]))
+        self.assertEqual(len(calls), 3)
+
     def test_kb_learns(self):
         calls = []
         kb = KnowledgeBase(":memory:", lambda q: calls.append(q) or FAKE)
         terms = analyze(">CFTR\nATGC")["terms"]
         r = research(kb, terms)
         research(kb, terms)
-        self.assertEqual(len(calls), 2)  # cached on second run
+        self.assertEqual(len(calls), 3)  # cached on second run
         self.assertEqual(r["editing"][0]["title"], "New AAV CRISPR")
         self.assertEqual(kb.stats()["papers"], 1)
 

@@ -12,6 +12,8 @@ BLAST_API = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 TOPICS = {
     "editing": "(CRISPR OR \"base editing\" OR \"prime editing\") AND (therapy OR treatment)",
     "delivery": "(AAV OR lentiviral OR \"viral vector\" OR \"adeno-associated\") AND (delivery OR gene therapy)",
+    "tcell": '("T cell" OR "T-cell" OR "CAR T" OR CAR-T OR "TCR-T" OR "engineered T cell") '
+             "AND (therapy OR treatment OR immunotherapy)",
 }
 CACHE_SECONDS = 7 * 86400
 
@@ -172,6 +174,11 @@ SIGNALS = {
         "Exon skipping / splice site": r"exon skipping|splic",
         "Intron": r"intron",
         "Promoter / enhancer": r"promoter|enhancer",
+    },
+    "tcell": {
+        "CAR-T therapy": r"\bCAR[- ]?T\b|chimeric antigen receptor",
+        "TCR-engineered T cells": r"\bTCR[- ]?T\b|T-cell receptor|TCR-engineered",
+        "Adoptive T-cell therapy": r"adoptive T[- ]cell|engineered T[- ]cell",
     },
 }
 
