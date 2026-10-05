@@ -17,6 +17,7 @@ textarea:focus,button:focus-visible,.vlink:focus-visible{outline:2px solid var(-
 button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:.5em 1.1em}
 button:hover{filter:brightness(1.08)}
 button#up{background:transparent;color:var(--accent)}
+button#clear{background:var(--card);border-color:var(--line);color:var(--text)}
 input[type=checkbox]{accent-color:var(--accent)}
 code{background:var(--code);padding:.1em .35em;border-radius:4px;font-size:.9em}
 mark{background:var(--mark);color:inherit;padding:0 .2em;border-radius:3px}
@@ -63,7 +64,7 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <p><label><input type=checkbox id=identify disabled> Identify sequence with NCBI BLAST</label>
 <small>Available on the <a href="https://github.com/keithevin722-cell/dnabreakpoint#usage">Python server</a> only; GitHub Pages cannot make the required browser request to NCBI.</small></p>
 <p><label><input type=checkbox id=fresh> Force fresh research</label>
-<button id=go>Research treatments</button> <span id=kb></span></p>
+<button id=go>Research treatments</button> <button type=button id=clear aria-label="Clear sequence and results">Clear</button> <span id=kb></span></p>
 <div id=out></div>
 <section class=vectors id=vectors aria-labelledby=vt>
 <h2 id=vt>Emerging Therapeutic Vectors &amp; Delivery Platforms</h2>
@@ -149,6 +150,15 @@ document.getElementById("f").onchange=async e=>{const f=e.target.files[0];if(!f)
  document.getElementById("fn").textContent=f.name;
  let b=f.stream();if(/\.gz$/i.test(f.name))b=b.pipeThrough(new DecompressionStream("gzip"));
  document.getElementById("g").value=await new Response(b).text()};
+let searchRun=0;
+document.getElementById("clear").onclick=()=>{
+ searchRun++;
+ document.getElementById("g").value="";
+ document.getElementById("f").value="";
+ document.getElementById("fn").textContent="VCF, .vcf.gz, FASTA or text";
+ document.getElementById("fresh").checked=false;
+ document.getElementById("out").replaceChildren();
+ document.getElementById("g").focus()};
 function terms(n){return{
  genes:uniq((n.match(/\b[A-Z][A-Z0-9]{2,9}\b/g)||[]).filter(g=>!STOP.has(g)&&!/^N[MCG]/.test(g))).slice(0,5),
  rsids:uniq((n.match(/\brs\d{3,}\b/gi)||[]).map(x=>x.toLowerCase())).slice(0,5),
@@ -172,6 +182,7 @@ async function search(q,fresh){
   catch(x){}}
  return DB[q]?.papers||[]}
 document.getElementById("go").onclick=async()=>{
+ const run=++searchRun;
  const out=document.getElementById("out");out.textContent="Researching...";
  const text=document.getElementById("g").value,vcf=isVcf(text);
  const[seq,notes,mask]=vcf?["","",[]]:parse(text),vp=varPos(notes,mask,seq.length);
@@ -189,7 +200,7 @@ document.getElementById("go").onclick=async()=>{
  const subj=[...t.genes,...t.rsids,...t.variants.map(v=>`"${v}"`)];
  if(!subj.length)h+="<p>No gene, rsID or variant detected; add one to search the literature.</p>";
  else{const all=new Map(),fresh=document.getElementById("fresh").checked;let lh="";for(const[n,q]of Object.entries(TOPICS)){
-  const ps=await search(`(${subj.join(" OR ")}) AND ${q}`,fresh);ps.forEach(p=>all.set(p.url,p));
+  const ps=await search(`(${subj.join(" OR ")}) AND ${q}`,fresh);if(run!==searchRun)return;ps.forEach(p=>all.set(p.url,p));
   lh+=`<h2>${TOPIC_LABELS[n]||n}</h2><ul>`+(ps.map(p=>`<li><a href="${esc(p.url)}" rel=noopener target=_blank>${esc(p.title)}</a> <small>${esc(p.journal)} ${esc(p.date)}</small></li>`).join("")||"<li>No results (offline?).</li>")+"</ul>"}
   h+=summary([...all.values()])+lh}
  out.innerHTML=h};
