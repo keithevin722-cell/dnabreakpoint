@@ -45,39 +45,38 @@ button:disabled{opacity:.6;cursor:wait}
 </form>
 </section>
 <script src="config.js"></script>
-<script>
+<script type=module>
 const $=id=>document.getElementById(id);
-(async()=>{
- if(!SUPABASE.url||!SUPABASE.anonKey){$("off").hidden=false;return}
- try{await new Promise((ok,fail)=>{const s=document.createElement("script");
-  s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js";
-  s.integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok";
-  s.crossOrigin="anonymous";s.onload=ok;s.onerror=fail;document.head.append(s)})}
- catch{$("off").textContent="Chat could not load. Please try again later.";$("off").hidden=false;return}
- const sb=supabase.createClient(SUPABASE.url,SUPABASE.anonKey,{auth:{persistSession:false}});
- let cid=localStorage.getItem("cid");if(!cid){cid=crypto.randomUUID();localStorage.setItem("cid",cid)}
+const CDN="https://www.gstatic.com/firebasejs/12.19.0/firebase-";
+if(!FIREBASE.apiKey||!FIREBASE.appId)$("off").hidden=false;
+else try{
+ const[{initializeApp},{getAuth,signInAnonymously},fs]=await Promise.all([import(CDN+"app.js"),import(CDN+"auth.js"),import(CDN+"firestore.js")]);
+ const{getFirestore,collection,query,orderBy,limit,onSnapshot,writeBatch,doc,serverTimestamp}=fs;
+ const app=initializeApp(FIREBASE),db=getFirestore(app);
+ const{user}=await signInAnonymously(getAuth(app));
  $("chat").hidden=false;$("nm").value=localStorage.getItem("chatName")||"";
  const log=$("log");let first=true;
  const draw=rows=>{const near=first||log.scrollHeight-log.scrollTop-log.clientHeight<80;first=false;
   if(!rows.length){const p=document.createElement("p");p.textContent="No messages yet. Say hello!";log.replaceChildren(p);return}
   log.replaceChildren(...rows.map(r=>{const d=document.createElement("div");d.className="m";
    const h=document.createElement("div"),b=document.createElement("b"),t=document.createElement("time");
-   b.textContent=r.name;t.dateTime=r.created_at;t.textContent=new Date(r.created_at).toLocaleString();h.append(b,t);
+   b.textContent=r.name;t.dateTime=r.at.toISOString();t.textContent=r.at.toLocaleString();h.append(b,t);
    const p=document.createElement("p");p.textContent=r.body;d.append(h,p);return d}));
   if(near)log.scrollTop=log.scrollHeight};
- const refresh=async()=>{const{data,error}=await sb.from("chat_messages").select("id,name,body,created_at")
-  .order("created_at",{ascending:false}).limit(50);if(!error&&data)draw(data.reverse())};
+ onSnapshot(query(collection(db,"messages"),orderBy("createdAt","desc"),limit(50)),
+  snap=>draw(snap.docs.map(d=>{const x=d.data({serverTimestamps:"estimate"});return{name:x.name,body:x.body,at:x.createdAt.toDate()}}).reverse()),
+  ()=>{$("err").textContent="Could not load messages."});
  const count=()=>{$("count").textContent=`${$("msg").value.length}/500`};
  $("msg").oninput=count;
  $("msg").onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();$("cf").requestSubmit()}};
  $("cf").onsubmit=async e=>{e.preventDefault();const body=$("msg").value.trim();if(!body)return;
   const typed=$("nm").value.trim();localStorage.setItem("chatName",typed);
   $("send").disabled=true;$("err").textContent="";
-  const{error}=await sb.from("chat_messages").insert({client_id:cid,name:typed||"Anonymous",body});
-  if(error)$("err").textContent=/wait/i.test(error.message)?"Please wait a few seconds before posting again.":"Message could not be sent.";
-  else{$("msg").value="";count();await refresh()}
+  try{const batch=writeBatch(db);
+   batch.set(doc(db,"lastPost",user.uid),{t:serverTimestamp()});
+   batch.set(doc(collection(db,"messages")),{name:typed||"Anonymous",body,createdAt:serverTimestamp(),uid:user.uid});
+   await batch.commit();$("msg").value="";count()}
+  catch{$("err").textContent="Message not sent. Please wait a few seconds and try again."}
   $("send").disabled=false};
- await refresh();
- setInterval(()=>{if(!document.hidden)refresh()},5000);
-})();
+}catch{$("off").textContent="Chat could not load. Please try again later.";$("off").hidden=false}
 </script>

@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Anyone may read chat. Visitors sign in anonymously so posting can be rate limited per browser.
+    // Moderate by deleting a message in the Firebase console.
+    match /messages/{id} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['name', 'body', 'createdAt', 'uid'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 40
+        && request.resource.data.body is string
+        && request.resource.data.body.size() >= 1 && request.resource.data.body.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && getAfter(/databases/$(database)/documents/lastPost/$(request.auth.uid)).data.t == request.time;
+      allow update, delete: if false;
+    }
+
+    // One post per browser every 5 seconds; a message can only be written in the same batch that bumps this.
+    match /lastPost/{uid} {
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['t'])
+        && request.resource.data.t == request.time;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['t'])
+        && request.resource.data.t == request.time
+        && request.time > resource.data.t + duration.value(5, 's');
+      allow read, delete: if false;
+    }
+  }
+}
