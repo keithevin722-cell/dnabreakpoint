@@ -34,8 +34,12 @@ ul,ol{padding-left:1.3em}li{margin:.3em 0}
 .vcard dd{margin:.15em 0 0}
 .vlink{display:block;text-align:center;border:1px solid var(--accent2);border-radius:8px;padding:.55em;color:var(--accent2);text-decoration:none;font-size:.9rem;font-weight:600}
 .vlink:hover{background:var(--accent2);color:#fff}
+html{scroll-behavior:smooth}
+.top-link{display:inline-block;margin-top:1.5em;padding:.45em .8em;border:1px solid var(--line);border-radius:6px;color:var(--accent2);text-decoration:none;font-size:.9rem;font-weight:600}
+.top-link:hover,.top-link:focus-visible{background:var(--code);text-decoration:underline}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style>
-<h1>DNA Breakpoint</h1>
+<h1 id=top>DNA Breakpoint</h1>
 <p><em>Research tool only. Not medical advice; candidate guides are computational suggestions that need expert and clinical validation.</em></p>
 <p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
 <p><button type=button id=up>Upload file</button> <span id=fn>VCF, .vcf.gz, FASTA or text</span>
@@ -73,6 +77,7 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <a class=vlink href="https://pubmed.ncbi.nlm.nih.gov/?term=%22oncolytic+virus%22+AND+CRISPR&sort=date" target=_blank rel="noopener noreferrer">Search active CRISPR/Vectors on PubMed</a></article>
 </div>
 </section>
+<p><a class=top-link href="#top">Back to top</a></p>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const STOP=new Set(["DNA","RNA","THE","AND","FOR","WITH","NOT","GENE","SNP","PAM"]);
