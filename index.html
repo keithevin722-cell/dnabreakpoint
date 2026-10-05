@@ -36,8 +36,8 @@ ul,ol{padding-left:1.3em}li{margin:.3em 0}
 .vlink{display:block;text-align:center;border:1px solid var(--accent2);border-radius:8px;padding:.55em;color:var(--accent2);text-decoration:none;font-size:.9rem;font-weight:600}
 .vlink:hover{background:var(--accent2);color:#fff}
 html{scroll-behavior:smooth}
-.top-link{display:inline-block;margin-top:1.5em;padding:.45em .8em;border:1px solid var(--line);border-radius:6px;color:var(--accent2);text-decoration:none;font-size:.9rem;font-weight:600}
-.top-link:hover,.top-link:focus-visible{background:var(--code);text-decoration:underline}
+.top-link{position:fixed;right:max(1rem,calc((100vw - 960px)/2));bottom:1rem;z-index:10;display:grid;place-items:center;width:48px;aspect-ratio:1;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--accent2);text-decoration:none;font-size:1.65rem;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.top-link:hover,.top-link:focus-visible{background:var(--code);outline:2px solid var(--accent);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style>
 <h1 id=top>DNA Breakpoint</h1>
@@ -78,7 +78,7 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <a class=vlink href="https://pubmed.ncbi.nlm.nih.gov/?term=%22oncolytic+virus%22+AND+CRISPR&sort=date" target=_blank rel="noopener noreferrer">Search active CRISPR/Vectors on PubMed</a></article>
 </div>
 </section>
-<p><a class=top-link href="#top">Back to top</a></p>
+<a class=top-link href="#top" aria-label="Back to top" title="Back to top">&#8593;</a>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const STOP=new Set(["DNA","RNA","THE","AND","FOR","WITH","NOT","GENE","SNP","PAM"]);
