@@ -1,7 +1,16 @@
 <!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>DNA Breakpoint</title>
 <style>body{font-family:sans-serif;max-width:900px;margin:2em auto;padding:0 1em}
-textarea{width:100%;height:14em;font-family:monospace}td,th{padding:2px 8px;text-align:left}</style>
+textarea{width:100%;height:14em;font-family:monospace}td,th{padding:2px 8px;text-align:left}
+.vectors{margin-top:2.5em;border-top:1px solid #ccc;padding-top:1em}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1em;margin-top:1em}
+.vcard{border:1px solid #bbb;border-radius:4px;padding:1em;display:flex;flex-direction:column}
+.vcard h3{margin:0 0 .6em;font-size:1.05em}
+.vcard dl{margin:0 0 1em;flex:1}
+.vcard dt{font-size:.7em;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#555;margin-top:.8em}
+.vcard dd{margin:.15em 0 0}
+.vlink{display:block;text-align:center;border:1px solid #333;border-radius:3px;padding:.5em;color:#000;text-decoration:none;font-size:.9em}
+.vlink:hover,.vlink:focus{background:#333;color:#fff}</style>
 <h1>DNA Breakpoint</h1>
 <p><em>Research tool only. Not medical advice; candidate guides are computational suggestions that need expert and clinical validation.</em></p>
 <p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
@@ -14,6 +23,32 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <p><label><input type=checkbox id=fresh> Force fresh research</label>
 <button id=go>Research treatments</button> <span id=kb></span></p>
 <div id=out></div>
+<section class=vectors aria-labelledby=vt>
+<h2 id=vt>Emerging Therapeutic Vectors &amp; Delivery Platforms</h2>
+<p><small>Summary for orientation only; verify payload limits and approval status against current primary sources.</small></p>
+<div class=vgrid>
+<article class=vcard><h3>HPV Pseudovirions (PsVs)</h3><dl>
+<dt>Max Payload Capacity<dd>8 kb (suited to large CRISPR-Cas9 complexes)
+<dt>Tissue Tropism / Target<dd>Epithelial tissues, genetic skin disorders, mucosal membranes
+<dt>Clinical Status<dd>Investigational / pre-clinical delivery vehicle</dl>
+<a class=vlink href="https://pubmed.ncbi.nlm.nih.gov/?term=%28papillomavirus+pseudovirion+OR+HPV+pseudovirion%29+AND+%28CRISPR+OR+%22gene+delivery%22%29&sort=date" target=_blank rel="noopener noreferrer">Search active CRISPR/Vectors on PubMed</a></article>
+<article class=vcard><h3>Adeno-Associated Virus (AAV)</h3><dl>
+<dt>Max Payload Capacity<dd>~4.7 kb
+<dt>Tissue Tropism / Target<dd>Systemic organs, central nervous system, retina, liver
+<dt>Clinical Status<dd>FDA-approved (e.g., Luxturna, Zolgensma)</dl>
+<a class=vlink href="https://pubmed.ncbi.nlm.nih.gov/?term=%28AAV+OR+%22adeno-associated+virus%22%29+AND+CRISPR&sort=date" target=_blank rel="noopener noreferrer">Search active CRISPR/Vectors on PubMed</a></article>
+<article class=vcard><h3>Lentiviral Vectors</h3><dl>
+<dt>Max Payload Capacity<dd>~8-10 kb
+<dt>Tissue Tropism / Target<dd>Ex vivo hematopoietic stem cells, T-cells (CAR-T therapy)
+<dt>Clinical Status<dd>FDA-approved / active clinical pipelines</dl>
+<a class=vlink href="https://pubmed.ncbi.nlm.nih.gov/?term=%28lentiviral+OR+lentivirus%29+AND+CRISPR&sort=date" target=_blank rel="noopener noreferrer">Search active CRISPR/Vectors on PubMed</a></article>
+<article class=vcard><h3>Oncolytic Viruses</h3><dl>
+<dt>Max Payload Capacity<dd>Not payload-limited; mechanism: selective replication inside tumor cells causing cell lysis
+<dt>Tissue Tropism / Target<dd>Solid tumors, advanced melanomas (e.g., T-VEC)
+<dt>Clinical Status<dd>FDA-approved / combination immuno-oncology</dl>
+<a class=vlink href="https://pubmed.ncbi.nlm.nih.gov/?term=%22oncolytic+virus%22+AND+CRISPR&sort=date" target=_blank rel="noopener noreferrer">Search active CRISPR/Vectors on PubMed</a></article>
+</div>
+</section>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const STOP=new Set(["DNA","RNA","THE","AND","FOR","WITH","NOT","GENE","SNP","PAM"]);
