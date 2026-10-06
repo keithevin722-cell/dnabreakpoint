@@ -99,13 +99,14 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <div id=out></div>
 <section id=tcell-search aria-labelledby=tcell-title>
 <h2 id=tcell-title>Search New T-cell Research by Disease</h2>
-<p><small>Searches Europe PMC for papers whose titles mention both the disease and a named T-cell therapy approach, newest publication dates first. This focused filter may omit relevant papers that mention these terms only in the abstract. Research links are not personalized or approved treatment recommendations.</small></p>
+<p><small>Searches global biomedical papers and ClinicalTrials.gov registrations for the disease and T-cell therapies. Papers and registered trials appear separately, newest first; registration is not proof of benefit or approval.</small></p>
 <form id=disease-form class=disease-form>
 <label for=disease>Disease or condition
 <input id=disease name=disease maxlength=100 required placeholder="For example: melanoma or sickle cell disease"></label>
 <button id=disease-go type=submit>Search T-cell research</button>
 </form>
 <div id=disease-results aria-live=polite></div>
+<div id=trial-results aria-live=polite></div>
 </section>
 <section class=vectors id=vectors aria-labelledby=vt>
 <h2 id=vt>Emerging Therapeutic Vectors &amp; Delivery Platforms</h2>
@@ -203,12 +204,42 @@ document.getElementById("clear").onclick=()=>{
  document.getElementById("out").replaceChildren();
  document.getElementById("g").focus()};
 let diseaseSearchRun=0;
+async function searchClinicalTrials(disease,box,run){
+ box.textContent="Searching ClinicalTrials.gov for recently registered T-cell trials...";
+ const query=new URLSearchParams({format:"json",pageSize:100,"query.cond":disease,
+  "query.intr":"CAR-T OR TCR-T OR adoptive T cell OR tumor-infiltrating lymphocyte OR engineered T cell OR TIL",
+  sort:"StudyFirstPostDate:desc"});
+ try{
+  const response=await fetch("https://clinicaltrials.gov/api/v2/studies?"+query);
+  if(!response.ok)throw new Error("ClinicalTrials.gov request failed");
+  const data=await response.json();if(run!==diseaseSearchRun)return;
+  const therapy=/\bCAR[- ]?T(?:[- ]cell)?\b|chimeric antigen receptor|\bTCR[- ]?T\b|T[- ]cell receptor.{0,40}(?:therapy|engineer)|adoptive (?:T[- ]cell|cell) (?:therapy|transfer)|tumou?r[- ]infiltrating lymphocytes?|\bTIL therapy\b|engineered T[- ]cells?/i;
+  const studies=(data.studies||[]).filter(study=>{
+   const section=study.protocolSection||{},title=section.identificationModule?.briefTitle||"";
+   const interventions=section.armsInterventionsModule?.interventions||[];
+   const interventionText=interventions.map(item=>[item.name,item.description,...(item.otherNames||[])].filter(Boolean).join(" ")).join(" ");
+    const conditions=(section.conditionsModule?.conditions||[]).join(" ").toLowerCase();
+    return (title+" "+conditions).toLowerCase().includes(disease.toLowerCase())&&therapy.test(title+" "+interventionText)
+  }).sort((a,b)=>String(b.protocolSection?.statusModule?.studyFirstPostDateStruct?.date||"").localeCompare(String(a.protocolSection?.statusModule?.studyFirstPostDateStruct?.date||""))).slice(0,10);
+  if(!studies.length){const url="https://clinicaltrials.gov/search?"+new URLSearchParams({cond:disease,intr:"CAR-T OR TCR-T OR adoptive T cell OR engineered T cell"});
+   box.innerHTML=`<p>No recent matching T-cell trials were found in the newest 100 registrations.</p><p><a href="${esc(url)}" target=_blank rel="noopener noreferrer">Search broader ClinicalTrials.gov records</a></p>`;return}
+  box.innerHTML="<h3>Registered T-cell trials (ClinicalTrials.gov)</h3><p><small>Registry entries are planned or ongoing studies, not evidence that a treatment works. Countries are listed when available.</small></p><ol>"+studies.map(study=>{
+   const section=study.protocolSection||{},id=section.identificationModule?.nctId||"",title=section.identificationModule?.briefTitle||"Untitled trial";
+   const status=section.statusModule||{},posted=status.studyFirstPostDateStruct?.date||status.studyFirstSubmitDate||"";
+   const state=(status.overallStatus||"Status unavailable").toLowerCase().replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+   const countries=[...new Set((section.contactsLocationsModule?.locations||[]).map(x=>x.country).filter(Boolean))].slice(0,5);
+   const details=[state,posted,countries.join(", ")].filter(Boolean).map(esc).join(" · ");
+   return `<li><a href="https://clinicaltrials.gov/study/${encodeURIComponent(id)}" target=_blank rel="noopener noreferrer">${esc(title)}</a> <small>${details}</small></li>`
+  }).join("")+"</ol>";
+ }catch{if(run===diseaseSearchRun)box.textContent="Could not reach ClinicalTrials.gov. Check your connection and try again."}
+}
 document.getElementById("disease-form").onsubmit=async e=>{
  e.preventDefault();
- const disease=document.getElementById("disease").value.trim(),box=document.getElementById("disease-results");
+ const disease=document.getElementById("disease").value.trim(),box=document.getElementById("disease-results"),trialBox=document.getElementById("trial-results");
  if(!disease)return;
  const run=++diseaseSearchRun,button=document.getElementById("disease-go");
  button.disabled=true;box.textContent="Searching Europe PMC for the newest T-cell research...";
+ void searchClinicalTrials(disease,trialBox,run);
  const phrase=disease.replace(/[\\"]/g,"\\$&");
  const query=`"${phrase}" AND ("CAR T" OR CAR-T OR "TCR-T" OR "T cell receptor" OR "adoptive T cell" OR "tumor-infiltrating lymphocyte" OR "engineered T cell" OR TIL) sort_date:y`;
  try{
