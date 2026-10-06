@@ -1,6 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isGoogleAdmin() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'keithevin722@gmail.com';
+    }
 
     // Only Google-authenticated users may read or post in chat.
     // Moderate by deleting a message in the Firebase console.
@@ -28,7 +34,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'body']);
       allow delete: if request.auth != null
         && request.auth.token.firebase.sign_in_provider == 'google.com'
-        && resource.data.uid == request.auth.uid;
+        && (resource.data.uid == request.auth.uid || isGoogleAdmin());
     }
 
     // Limit each Google account to one post every 5 seconds.

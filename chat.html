@@ -65,6 +65,7 @@ else try{
  const{getFirestore,collection,query,orderBy,limit,onSnapshot,writeBatch,doc,serverTimestamp}=fs;
  const app=initializeApp(FIREBASE),db=getFirestore(app),auth=getAuth(app);
  const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:"select_account"});
+ const isAdmin=user=>!!FIREBASE.adminEmail&&!!user?.emailVerified&&user.email.toLowerCase()===FIREBASE.adminEmail.trim().toLowerCase();
  const{updateDoc,deleteDoc}=fs;
  let currentUser=null,editingId=null,stopMessages,first=true;
  const log=$("log");
@@ -74,14 +75,16 @@ else try{
    const h=document.createElement("div"),b=document.createElement("b"),t=document.createElement("time");
    b.textContent=r.name;t.dateTime=r.at.toISOString();t.textContent=r.at.toLocaleString();h.append(b,t);
    const p=document.createElement("p");p.textContent=r.body;d.append(h,p);
-   if(currentUser?.uid===r.uid){const actions=document.createElement("div");actions.className="message-actions";
-    const edit=document.createElement("button");edit.type="button";edit.textContent="Edit";edit.setAttribute("aria-label","Edit your comment");
+  const own=currentUser?.uid===r.uid,admin=isAdmin(currentUser);
+  if(own||admin){const actions=document.createElement("div");actions.className="message-actions";
+   if(own){const edit=document.createElement("button");edit.type="button";edit.textContent="Edit";edit.setAttribute("aria-label","Edit your comment");
     edit.onclick=()=>{editingId=r.id;$("nm").value=r.name;$("msg").value=r.body;count();$("send").textContent="Save edit";$("cancel-edit").hidden=false;$("msg").focus()};
-    const remove=document.createElement("button");remove.type="button";remove.textContent="Delete";remove.setAttribute("aria-label","Delete your comment");
-    remove.onclick=async()=>{if(!confirm("Delete your comment?"))return;remove.disabled=true;
+    actions.append(edit)}
+   const remove=document.createElement("button");remove.type="button";remove.textContent=own?"Delete":"Admin delete";remove.setAttribute("aria-label",own?"Delete your comment":"Admin delete comment");
+   remove.onclick=async()=>{if(!confirm(own?"Delete your comment?":"Delete this comment as administrator?"))return;remove.disabled=true;
      try{await deleteDoc(doc(db,"messages",r.id));if(editingId===r.id)resetEditor()}
-     catch(error){$("err").textContent=error.code==="permission-denied"?"You can only delete your own comments.":"Could not delete comment.";remove.disabled=false}};
-    actions.append(edit,remove);d.append(actions)}
+    catch(error){$("err").textContent=error.code==="permission-denied"?"Firebase denied deletion. Check that the admin email matches the published rules.":"Could not delete comment.";remove.disabled=false}};
+   actions.append(remove);d.append(actions)}
    return d}));
   if(near)log.scrollTop=log.scrollHeight};
  const resetEditor=()=>{editingId=null;$("cf").reset();$("send").textContent="Send";$("cancel-edit").hidden=true;count()};
