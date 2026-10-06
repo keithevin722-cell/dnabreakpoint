@@ -90,6 +90,7 @@ a.seen,.nav-links a.seen{color:var(--seen)}
 <p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
 <p><button type=button id=up>Upload file</button> <span id=fn>VCF, .vcf.gz, FASTA or text</span>
 <input type=file id=f hidden accept=".vcf,.gz,.fa,.fasta,.txt"></p>
+<p><small>Example input only: the prefilled CFTR sequence and variant are for demonstration. Replace them with your own data before researching.</small></p>
 <textarea id=g>>CFTR rs113993960
 ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <p><label><input type=checkbox id=identify disabled> Identify sequence with NCBI BLAST</label>
