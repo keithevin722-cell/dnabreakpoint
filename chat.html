@@ -17,6 +17,8 @@ p em{display:block;border-left:4px solid var(--accent);background:var(--card);pa
 .m b{color:var(--accent)}
 .m time{font-size:.75rem;color:var(--muted);margin-left:.4em}
 .m p{margin:.2em 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.message-actions{display:flex;gap:.6em;margin-top:.35em}
+.message-actions button{padding:.15em .5em;background:transparent;color:var(--accent2);border-color:var(--line);font-size:.8rem}
 label{display:block;font-size:.85rem;color:var(--muted);margin-top:.6em}
 input,textarea{width:100%;font:inherit;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.55em .7em}
 textarea{height:6em;resize:vertical}
@@ -49,7 +51,7 @@ button:disabled{opacity:.6;cursor:wait}
 <input id=nm maxlength=40 placeholder="Google display name" autocomplete=nickname>
 <label for=msg>Message</label>
 <textarea id=msg maxlength=500 required placeholder="Write a message (Ctrl+Enter to send)"></textarea>
-<div class=row><button id=send>Send</button><small id=count>0/500</small><small id=err role=alert></small></div>
+<div class=row><button id=send>Send</button><button type=button id=cancel-edit hidden>Cancel edit</button><small id=count>0/500</small><small id=err role=alert></small></div>
 </form>
 </section>
 <script src="config.js"></script>
@@ -63,15 +65,26 @@ else try{
  const{getFirestore,collection,query,orderBy,limit,onSnapshot,writeBatch,doc,serverTimestamp}=fs;
  const app=initializeApp(FIREBASE),db=getFirestore(app),auth=getAuth(app);
  const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:"select_account"});
- const log=$("log");let first=true;
+ const{updateDoc,deleteDoc}=fs;
+ let currentUser=null,editingId=null,stopMessages,first=true;
+ const log=$("log");
  const draw=rows=>{const near=first||log.scrollHeight-log.scrollTop-log.clientHeight<80;first=false;
   if(!rows.length){const p=document.createElement("p");p.textContent="No messages yet. Say hello!";log.replaceChildren(p);return}
   log.replaceChildren(...rows.map(r=>{const d=document.createElement("div");d.className="m";
    const h=document.createElement("div"),b=document.createElement("b"),t=document.createElement("time");
    b.textContent=r.name;t.dateTime=r.at.toISOString();t.textContent=r.at.toLocaleString();h.append(b,t);
-   const p=document.createElement("p");p.textContent=r.body;d.append(h,p);return d}));
+   const p=document.createElement("p");p.textContent=r.body;d.append(h,p);
+   if(currentUser?.uid===r.uid){const actions=document.createElement("div");actions.className="message-actions";
+    const edit=document.createElement("button");edit.type="button";edit.textContent="Edit";edit.setAttribute("aria-label","Edit your comment");
+    edit.onclick=()=>{editingId=r.id;$("nm").value=r.name;$("msg").value=r.body;count();$("send").textContent="Save edit";$("cancel-edit").hidden=false;$("msg").focus()};
+    const remove=document.createElement("button");remove.type="button";remove.textContent="Delete";remove.setAttribute("aria-label","Delete your comment");
+    remove.onclick=async()=>{if(!confirm("Delete your comment?"))return;remove.disabled=true;
+     try{await deleteDoc(doc(db,"messages",r.id));if(editingId===r.id)resetEditor()}
+     catch(error){$("err").textContent=error.code==="permission-denied"?"You can only delete your own comments.":"Could not delete comment.";remove.disabled=false}};
+    actions.append(edit,remove);d.append(actions)}
+   return d}));
   if(near)log.scrollTop=log.scrollHeight};
- let stopMessages,currentUser=null;
+ const resetEditor=()=>{editingId=null;$("cf").reset();$("send").textContent="Send";$("cancel-edit").hidden=true;count()};
  onAuthStateChanged(auth,user=>{
   currentUser=user;
   if(user&&!user.providerData.some(p=>p.providerId==="google.com")){signOut(auth);return}
@@ -81,7 +94,7 @@ else try{
   $("google-name").textContent=user.displayName||"Google account";
   $("nm").value=localStorage.getItem("chatName")||user.displayName||"";
   stopMessages=onSnapshot(query(collection(db,"messages"),orderBy("createdAt","desc"),limit(50)),
-   snap=>draw(snap.docs.map(d=>{const x=d.data({serverTimestamps:"estimate"});return{name:x.name,body:x.body,at:x.createdAt.toDate()}}).reverse()),
+  snap=>draw(snap.docs.map(d=>{const x=d.data({serverTimestamps:"estimate"});return{id:d.id,uid:x.uid,name:x.name,body:x.body,at:x.createdAt.toDate()}}).reverse()),
    ()=>{$("err").textContent="Could not load messages."});
  });
  $("google").onclick=async()=>{$("google").disabled=true;$("autherr").textContent="";
@@ -96,16 +109,19 @@ else try{
  const count=()=>{$("count").textContent=`${$("msg").value.length}/500`};
  $("msg").oninput=count;
  $("msg").onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();$("cf").requestSubmit()}};
+ $("cancel-edit").onclick=resetEditor;
  $("cf").onsubmit=async e=>{e.preventDefault();const body=$("msg").value.trim();if(!body)return;
   const typed=$("nm").value.trim();localStorage.setItem("chatName",typed);
   $("send").disabled=true;$("err").textContent="";
   if(!currentUser){$("err").textContent="Sign in with Google before posting.";$("send").disabled=false;return}
-  try{const batch=writeBatch(db);
-   batch.set(doc(db,"lastPost",currentUser.uid),{t:serverTimestamp()});
-   batch.set(doc(collection(db,"messages")),{name:typed||"Anonymous",body,createdAt:serverTimestamp(),uid:currentUser.uid});
-   await batch.commit();$("msg").value="";count()}
+  try{if(editingId){await updateDoc(doc(db,"messages",editingId),{name:typed||currentUser.displayName||"Anonymous",body})}
+   else{const batch=writeBatch(db);
+    batch.set(doc(db,"lastPost",currentUser.uid),{t:serverTimestamp()});
+    batch.set(doc(collection(db,"messages")),{name:typed||currentUser.displayName||"Anonymous",body,createdAt:serverTimestamp(),uid:currentUser.uid});
+    await batch.commit()}
+   resetEditor()}
   catch(error){console.error("Chat message failed",error);$("err").textContent=error.code==="permission-denied"
-   ?"Firebase blocked this post. Check that the latest Firestore rules are published and try signing in again."
+   ?"Firebase blocked this change. Make sure the latest Firestore rules are published."
    :"Message not sent. Check your connection and try again."}
   $("send").disabled=false};
 }catch{$("off").textContent="Chat could not load. Please try again later.";$("off").hidden=false}

@@ -16,7 +16,19 @@ service cloud.firestore {
         && request.resource.data.body.size() >= 1 && request.resource.data.body.size() <= 500
         && request.resource.data.createdAt == request.time
         && getAfter(/databases/$(database)/documents/lastPost/$(request.auth.uid)).data.t == request.time;
-      allow update, delete: if false;
+      allow update: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 40
+        && request.resource.data.body is string
+        && request.resource.data.body.size() >= 1 && request.resource.data.body.size() <= 500
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'body']);
+      allow delete: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && resource.data.uid == request.auth.uid;
     }
 
     // Limit each Google account to one post every 5 seconds.
