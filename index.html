@@ -51,7 +51,18 @@ html{scroll-behavior:smooth}
 .disease-form input{width:100%;font:inherit;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.55em .7em;margin-top:.3em}
 .disease-form input:focus{outline:2px solid var(--accent);outline-offset:2px}
 #disease-results{margin-top:1em}
+.symptom-section{margin:2em 0;padding:1.2em 0;border-block:1px solid var(--line)}
+.symptom-section textarea{height:6em;max-width:720px}
+.care-controls{display:flex;align-items:end;gap:.7em;max-width:720px;margin-top:.6em}
+.care-controls label{flex:1}
+.care-controls input{width:100%;font:inherit;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.55em .7em;margin-top:.3em}
+.care-controls input:focus{outline:2px solid var(--accent);outline-offset:2px}
+#symptom-results{margin-top:1em}
+.resource-links{display:flex;flex-wrap:wrap;gap:.6em}
+.resource-links a{display:inline-block;border:1px solid var(--accent2);border-radius:8px;padding:.45em .7em;text-decoration:none}
+.resource-links a:hover{background:var(--code)}
 @media(max-width:560px){.disease-form{align-items:stretch;flex-direction:column}.disease-form button{align-self:flex-start}}
+@media(max-width:600px){.care-controls{align-items:stretch;flex-direction:column}.care-controls button{align-self:flex-start}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 [hidden]{display:none!important}
 .nav-links button{background:transparent;border:1px solid var(--line);color:var(--text);padding:.3rem .7rem;font-size:.85rem;white-space:nowrap}
@@ -69,7 +80,7 @@ a.seen,.nav-links a.seen{color:var(--seen)}
 <nav class=site-nav aria-label="Main navigation">
 <a class=nav-brand href="#top">DNA Breakpoint</a>
 <div class=nav-links>
-<a href="#out">Knowledge</a><a href="#tcell-search">T-cell search</a><a href="#vectors">Vectors</a>
+<a href="#symptoms">Symptoms</a><a href="#out">Knowledge</a><a href="#tcell-search">T-cell search</a><a href="#vectors">Vectors</a>
 <a href="chat.html" id=chatlink>Chat</a>
 <a href="https://europepmc.org/search?query=CRISPR%20gene%20therapy%20delivery" target=_blank rel="noopener noreferrer">Europe PMC</a>
 <a href="https://pubmed.ncbi.nlm.nih.gov/?term=CRISPR+gene+therapy+delivery&sort=date" target=_blank rel="noopener noreferrer">PubMed</a>
@@ -88,6 +99,22 @@ a.seen,.nav-links a.seen{color:var(--seen)}
 </dialog>
 <h1 id=top>DNA Breakpoint</h1>
 <p><em>Research tool only. Not medical advice; candidate guides are computational suggestions that need expert and clinical validation.</em></p>
+<section id=symptoms class=symptom-section aria-labelledby=symptom-title>
+<h2 id=symptom-title>Symptom Information &amp; Find Care</h2>
+<p><small>This tool cannot diagnose symptoms. For severe or rapidly worsening symptoms, contact local emergency services now.</small></p>
+<form id=symptom-form>
+<label for=symptom-text>Symptoms (do not enter your name or other personal details)</label>
+<textarea id=symptom-text maxlength=600 required placeholder="Describe the symptoms you want to learn about"></textarea>
+<div class=care-controls>
+<label for=care-location>City, region or postal code (optional)
+<input id=care-location maxlength=100 placeholder="Enter a location"></label>
+<button type=button id=use-location>Use my location</button>
+<button type=submit>Find information and care</button>
+</div>
+</form>
+<p id=symptom-status role=status aria-live=polite><small>Nothing is saved here. Search terms are sent to a health-information site only when you open its link.</small></p>
+<div id=symptom-results aria-live=polite></div>
+</section>
 <p>Paste your sequence (FASTA or raw) or a VCF, or load a file; include the gene, rsID or HGVS variant (e.g. CFTR, rs113993960) on a header or extra line. To rank cut sites near your variant, add <code>pos=N</code> on a header line or write the variant bases in lowercase.</p>
 <p><button type=button id=up>Upload file</button> <span id=fn>VCF, .vcf.gz, FASTA or text</span>
 <input type=file id=f hidden accept=".vcf,.gz,.fa,.fasta,.txt"></p>
@@ -141,6 +168,26 @@ ATGCGTACGTTAGCCTAGGCTAGCTAGGATCGATCGGATC</textarea>
 <script src="config.js"></script>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+document.getElementById("use-location").onclick=()=>{
+ const status=document.getElementById("symptom-status");
+ if(!navigator.geolocation){status.textContent="Location is unavailable in this browser; enter a city or region instead.";return}
+ status.textContent="Requesting your location...";
+ navigator.geolocation.getCurrentPosition(({coords})=>{
+  document.getElementById("care-location").value=`${coords.latitude.toFixed(4)},${coords.longitude.toFixed(4)}`;
+  status.textContent="Location ready. It is only included if you open the map link.";
+ },()=>{status.textContent="Could not get location; enter a city or region instead."},{enableHighAccuracy:false,timeout:10000,maximumAge:60000});
+};
+document.getElementById("symptom-form").onsubmit=e=>{
+ e.preventDefault();
+ const symptoms=document.getElementById("symptom-text").value.trim();
+ const place=document.getElementById("care-location").value.trim();
+ if(!symptoms)return;
+ const med=new URL("https://medlineplus.gov/search/");med.searchParams.set("query",symptoms);
+ const nhs=new URL("https://www.nhs.uk/search/results/");nhs.searchParams.set("q",symptoms);
+ const mapQuery=place?`primary care doctors near ${place}`:"primary care doctors near me";
+ const maps=new URL("https://www.google.com/maps/search/");maps.searchParams.set("api","1");maps.searchParams.set("query",mapQuery);
+ document.getElementById("symptom-results").innerHTML=`<h3>Health information to review</h3><p>These are search results, not a diagnosis or a ranked list of likely causes:</p><div class=resource-links><a href="${esc(med.href)}" target=_blank rel="noopener noreferrer">Search MedlinePlus</a><a href="${esc(nhs.href)}" target=_blank rel="noopener noreferrer">Search NHS health information</a><a href="${esc(maps.href)}" target=_blank rel="noopener noreferrer">Find primary-care doctors near ${esc(place||"me")}</a></div><p><small>Map listings are not an independently verified “best doctors” ranking. Check qualifications, specialty and availability with the provider. Symptoms and location stay in this page unless you open one of these external searches.</small></p>`;
+};
 const STOP=new Set(["DNA","RNA","THE","AND","FOR","WITH","NOT","GENE","SNP","PAM"]);
 const TOPICS={editing:'(CRISPR OR "base editing" OR "prime editing") AND (therapy OR treatment)',
  delivery:'(AAV OR lentiviral OR "viral vector" OR "adeno-associated") AND (delivery OR gene therapy)',
